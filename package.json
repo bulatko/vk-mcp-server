@@ -1,0 +1,35 @@
+{
+  "name": "vk-mcp-server",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for VK (VKontakte) social network API",
+  "main": "src/index.js",
+  "type": "module",
+  "bin": {
+    "vk-mcp-server": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "vk",
+    "vkontakte",
+    "social-network",
+    "api",
+    "claude",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/vk-mcp-server"
+  }
+}
