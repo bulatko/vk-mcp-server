@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.bulatko/vk",
-  "description": "Model Context Protocol server for VK (VKontakte) social network API. Access users, walls, groups, friends, newsfeed, photos, and community stats.",
+  "description": "MCP server for VK (VKontakte) API: users, walls, groups, friends, newsfeed, photos.",
   "repository": {
     "url": "https://github.com/bulatko/vk-mcp-server.git",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "vk-mcp-server",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
