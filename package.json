@@ -1,6 +1,7 @@
 {
   "name": "vk-mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "mcpName": "io.github.bulatko/vk",
   "description": "Model Context Protocol server for VK (VKontakte) social network API",
   "main": "src/index.js",
   "type": "module",
@@ -30,6 +31,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/vk-mcp-server"
+    "url": "https://github.com/bulatko/vk-mcp-server"
   }
 }
