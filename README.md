@@ -21,16 +21,16 @@
 
 ---
 
-## ✨ Features
+## Features
 
-- 📖 **Read Operations**: Get users, wall posts, groups, friends, newsfeed, photos
-- ✍️ **Write Operations**: Create posts, add comments
-- 📊 **Analytics**: Get community statistics
-- 🔒 **Secure**: Token-based authentication via environment variable
-- 🧪 **Tested**: Comprehensive test coverage
-- 📦 **Easy Install**: Available on npm and MCP Registry
+- **Read Operations**: Get users, wall posts, groups, friends, newsfeed, photos
+- **Write Operations**: Create posts, add comments
+- **Analytics**: Get community statistics
+- **Secure**: Token-based authentication via environment variable
+- **Tested**: Comprehensive test coverage
+- **Easy Install**: Available on npm and MCP Registry
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -50,7 +50,7 @@ Also available in the official MCP Registry:
 io.github.bulatko/vk
 ```
 
-## 🔑 Getting VK Access Token
+## Getting VK Access Token
 
 1. Go to [VK Developers](https://vk.com/dev) and create a Standalone app
 2. Get your app ID
@@ -60,7 +60,7 @@ io.github.bulatko/vk
    ```
 4. Authorize and copy the `access_token` from the URL
 
-## ⚙️ Configuration
+## Configuration
 
 ### Claude Desktop
 
@@ -98,7 +98,7 @@ Add to your project's `.mcp.json`:
 }
 ```
 
-## 🛠️ Available Tools
+## Available Tools
 
 | Tool | Description |
 |------|-------------|
@@ -113,7 +113,7 @@ Add to your project's `.mcp.json`:
 | `vk_stats_get` | Get community statistics (admin only) |
 | `vk_photos_get` | Get photos from albums |
 
-## 💬 Usage Examples
+## Usage Examples
 
 Once configured, you can ask Claude:
 
@@ -136,7 +136,7 @@ Here are the latest posts from Pavel Durov's wall:
 2. [Post content...]
 ```
 
-## 🧪 Testing
+## Testing
 
 Run the test suite:
 
@@ -150,20 +150,20 @@ Run tests with coverage:
 npm run test:coverage
 ```
 
-## 📚 API Reference
+## API Reference
 
 This server wraps VK API v5.199. For detailed parameter documentation, see:
 - [VK API Methods](https://dev.vk.com/ru/method)
 - [VK API Objects](https://dev.vk.com/ru/reference)
 
-## 🔒 Security Notes
+## Security Notes
 
 - Never share your access token
 - The `offline` scope provides a non-expiring token
 - Review permissions before authorizing
 - For production, consider using a service token
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please read the [Contributing Guidelines](CONTRIBUTING.md) first.
 
@@ -173,11 +173,11 @@ Contributions are welcome! Please read the [Contributing Guidelines](CONTRIBUTIN
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
-[MIT](LICENSE) © 2024
+[MIT](LICENSE) © 2026 bulatko
 
-## 🔗 Links
+## Links
 
 - [npm Package](https://www.npmjs.com/package/vk-mcp-server)
 - [MCP Registry](https://registry.modelcontextprotocol.io/)
