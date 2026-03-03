@@ -9,7 +9,9 @@
     "vk-mcp-server": "./src/index.js"
   },
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
   },
   "keywords": [
     "mcp",
@@ -19,12 +21,17 @@
     "social-network",
     "api",
     "claude",
-    "ai"
+    "ai",
+    "anthropic",
+    "llm"
   ],
-  "author": "",
+  "author": "bulatko",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -32,5 +39,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/bulatko/vk-mcp-server"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/bulatko/vk-mcp-server/issues"
+  },
+  "homepage": "https://github.com/bulatko/vk-mcp-server#readme"
 }
