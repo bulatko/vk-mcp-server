@@ -53,7 +53,10 @@ class VKClient {
 
   // Wall
   wallGet(params) { return this.call('wall.get', params); }
+  wallGetById(params) { return this.call('wall.getById', params); }
   wallPost(params) { return this.call('wall.post', params); }
+  wallEdit(params) { return this.call('wall.edit', params); }
+  wallDelete(params) { return this.call('wall.delete', params); }
   wallCreateComment(params) { return this.call('wall.createComment', params); }
 
   // Groups
@@ -71,6 +74,40 @@ class VKClient {
 
   // Photos
   photosGet(params) { return this.call('photos.get', params); }
+  photosGetWallUploadServer(params) { return this.call('photos.getWallUploadServer', params); }
+  photosSaveWallPhoto(params) { return this.call('photos.saveWallPhoto', params); }
+
+  async uploadPhoto(uploadUrl, imageSource) {
+    let blob;
+    let filename = 'photo.jpg';
+
+    if (imageSource.startsWith('http://') || imageSource.startsWith('https://')) {
+      const resp = await fetch(imageSource);
+      if (!resp.ok) throw new Error(`Failed to download image: ${resp.status}`);
+      const contentType = resp.headers.get('content-type') || 'image/jpeg';
+      const ext = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : 'jpg';
+      filename = `photo.${ext}`;
+      blob = await resp.blob();
+    } else {
+      const { readFile } = await import('node:fs/promises');
+      const buffer = await readFile(imageSource);
+      const ext = imageSource.split('.').pop() || 'jpg';
+      filename = `photo.${ext}`;
+      blob = new Blob([buffer], { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
+    }
+
+    const formData = new FormData();
+    formData.append('photo', blob, filename);
+
+    const resp = await fetch(uploadUrl, { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (!data.photo || data.photo === '[]') {
+      throw new Error('Photo upload failed: empty response from VK upload server');
+    }
+
+    return data;
+  }
 }
 
 // ============================================
@@ -113,6 +150,7 @@ const tools = [
         domain: { type: 'string', description: 'Short address of user or community' },
         count: { type: 'number', description: 'Number of posts (1-100)' },
         offset: { type: 'number', description: 'Offset for pagination' },
+        filter: { type: 'string', description: 'Filter: all, owner, others, postponed, suggests', enum: ['all', 'owner', 'others', 'postponed', 'suggests'] },
       },
     },
   },
@@ -125,6 +163,9 @@ const tools = [
         owner_id: { type: 'number', description: 'Wall owner ID' },
         message: { type: 'string', description: 'Post text content' },
         from_group: { type: 'boolean', description: 'Post on behalf of community' },
+        attachments: { type: 'string', description: 'Comma-separated attachments (e.g. photo123_456,link)' },
+        publish_date: { type: 'number', description: 'Unix timestamp for scheduled post (must be within 2 weeks)' },
+        guid: { type: 'string', description: 'Unique identifier to prevent duplicate posts' },
       },
       required: ['message'],
     },
@@ -140,6 +181,57 @@ const tools = [
         message: { type: 'string', description: 'Comment text' },
       },
       required: ['owner_id', 'post_id', 'message'],
+    },
+  },
+  {
+    name: 'vk_wall_get_by_id',
+    description: 'Get posts by their IDs',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        posts: { type: 'string', description: 'Comma-separated post IDs in format {owner_id}_{post_id} (e.g. -123_456)' },
+        fields: { type: 'string', description: 'Additional profile fields to return' },
+      },
+      required: ['posts'],
+    },
+  },
+  {
+    name: 'vk_wall_edit',
+    description: 'Edit an existing wall post',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        owner_id: { type: 'number', description: 'Wall owner ID' },
+        post_id: { type: 'number', description: 'Post ID to edit' },
+        message: { type: 'string', description: 'New post text' },
+        attachments: { type: 'string', description: 'Comma-separated attachments' },
+      },
+      required: ['post_id'],
+    },
+  },
+  {
+    name: 'vk_wall_delete',
+    description: 'Delete a wall post',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        owner_id: { type: 'number', description: 'Wall owner ID' },
+        post_id: { type: 'number', description: 'Post ID to delete' },
+      },
+      required: ['post_id'],
+    },
+  },
+  {
+    name: 'vk_photos_upload_wall',
+    description: 'Upload a photo to a community or user wall (3-step process: get upload server, upload file, save). Returns attachment string for use in wall.post/wall.edit.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        group_id: { type: 'number', description: 'Community ID (positive number, without minus sign)' },
+        image: { type: 'string', description: 'Image URL (http/https) or absolute local file path' },
+        caption: { type: 'string', description: 'Photo caption' },
+      },
+      required: ['image'],
     },
   },
   {
@@ -240,6 +332,7 @@ async function handleToolCall(name, args) {
           domain: args.domain,
           count: args.count || 20,
           offset: args.offset,
+          filter: args.filter,
         });
         break;
 
@@ -248,6 +341,9 @@ async function handleToolCall(name, args) {
           owner_id: args.owner_id,
           message: args.message,
           from_group: args.from_group ? 1 : 0,
+          attachments: args.attachments,
+          publish_date: args.publish_date,
+          guid: args.guid,
         });
         break;
 
@@ -258,6 +354,49 @@ async function handleToolCall(name, args) {
           message: args.message,
         });
         break;
+
+      case 'vk_wall_get_by_id':
+        result = await vk.wallGetById({
+          posts: args.posts,
+          fields: args.fields,
+        });
+        break;
+
+      case 'vk_wall_edit':
+        result = await vk.wallEdit({
+          owner_id: args.owner_id,
+          post_id: args.post_id,
+          message: args.message,
+          attachments: args.attachments,
+        });
+        break;
+
+      case 'vk_wall_delete':
+        result = await vk.wallDelete({
+          owner_id: args.owner_id,
+          post_id: args.post_id,
+        });
+        break;
+
+      case 'vk_photos_upload_wall': {
+        const uploadServer = await vk.photosGetWallUploadServer({
+          group_id: args.group_id,
+        });
+        const uploadResult = await vk.uploadPhoto(uploadServer.upload_url, args.image);
+        const saved = await vk.photosSaveWallPhoto({
+          group_id: args.group_id,
+          server: uploadResult.server,
+          photo: uploadResult.photo,
+          hash: uploadResult.hash,
+          caption: args.caption,
+        });
+        const photo = saved[0];
+        result = {
+          ...photo,
+          attachment: `photo${photo.owner_id}_${photo.id}`,
+        };
+        break;
+      }
 
       case 'vk_groups_get':
         result = await vk.groupsGet({
