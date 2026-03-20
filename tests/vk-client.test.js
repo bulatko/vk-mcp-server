@@ -91,6 +91,10 @@ describe('VK API Client', () => {
       'vk_wall_get',
       'vk_wall_post',
       'vk_wall_create_comment',
+      'vk_wall_get_by_id',
+      'vk_wall_edit',
+      'vk_wall_delete',
+      'vk_photos_upload_wall',
       'vk_groups_get',
       'vk_groups_get_by_id',
       'vk_friends_get',
@@ -100,10 +104,13 @@ describe('VK API Client', () => {
     ];
 
     it('should have all expected tools defined', () => {
-      // This test validates the expected tool list
-      expect(expectedTools).toHaveLength(10);
+      expect(expectedTools).toHaveLength(14);
       expect(expectedTools).toContain('vk_users_get');
       expect(expectedTools).toContain('vk_wall_post');
+      expect(expectedTools).toContain('vk_wall_edit');
+      expect(expectedTools).toContain('vk_wall_delete');
+      expect(expectedTools).toContain('vk_wall_get_by_id');
+      expect(expectedTools).toContain('vk_photos_upload_wall');
     });
 
     it('should have correct tool naming convention', () => {
@@ -128,6 +135,26 @@ describe('VK API Client', () => {
     it('should require group_id for stats', () => {
       const requiredFields = ['group_id'];
       expect(requiredFields).toContain('group_id');
+    });
+
+    it('should require post_id for wall_edit', () => {
+      const requiredFields = ['post_id'];
+      expect(requiredFields).toContain('post_id');
+    });
+
+    it('should require post_id for wall_delete', () => {
+      const requiredFields = ['post_id'];
+      expect(requiredFields).toContain('post_id');
+    });
+
+    it('should require posts for wall_get_by_id', () => {
+      const requiredFields = ['posts'];
+      expect(requiredFields).toContain('posts');
+    });
+
+    it('should require image for photos_upload_wall', () => {
+      const requiredFields = ['image'];
+      expect(requiredFields).toContain('image');
     });
   });
 });
