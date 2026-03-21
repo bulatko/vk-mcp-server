@@ -19,9 +19,12 @@
   Enables AI assistants like Claude to interact with VK through a standardized interface.
 </p>
 
+
+<p align="center">
 <a href="https://glama.ai/mcp/servers/bulatko/vk-mcp-server">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/bulatko/vk-mcp-server/badge" alt="vk-mcp-server MCP server" />
 </a>
+</p>
 
 ---
 
