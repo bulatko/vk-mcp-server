@@ -37,6 +37,10 @@
 - **Tested**: Comprehensive test coverage
 - **Easy Install**: Available on npm and MCP Registry
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/bulatko-vk-mcp-server).
+
 ## Quick Start
 
 ### Installation
