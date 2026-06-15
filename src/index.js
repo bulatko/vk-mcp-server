@@ -27,8 +27,9 @@ class VKClient {
   }
 
   async call(method, params = {}) {
+    const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
     const body = new URLSearchParams({
-      ...params,
+      ...clean,
       access_token: this.accessToken,
       v: this.apiVersion,
     });
@@ -62,6 +63,7 @@ class VKClient {
   // Groups
   groupsGet(params) { return this.call('groups.get', { ...params, extended: 1 }); }
   groupsGetById(params) { return this.call('groups.getById', params); }
+  groupsJoin(params) { return this.call('groups.join', params); }
 
   // Friends
   friendsGet(params) { return this.call('friends.get', params); }
@@ -235,6 +237,18 @@ const tools = [
     },
   },
   {
+    name: 'vk_groups_join',
+    description: 'Join a VK community or submit a join request if the group is closed',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        group_id: { type: 'number', description: 'Community ID (positive number, without minus sign)' },
+        not_sure: { type: 'number', description: 'For events only: 1 — "maybe attending", 0 — confirmed', enum: [0, 1] },
+      },
+      required: ['group_id'],
+    },
+  },
+  {
     name: 'vk_groups_get',
     description: 'Get list of communities the user is a member of',
     inputSchema: {
@@ -397,6 +411,13 @@ async function handleToolCall(name, args) {
         };
         break;
       }
+
+      case 'vk_groups_join':
+        result = await vk.groupsJoin({
+          group_id: args.group_id,
+          not_sure: args.not_sure,
+        });
+        break;
 
       case 'vk_groups_get':
         result = await vk.groupsGet({
