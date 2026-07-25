@@ -155,9 +155,62 @@ describe('tools/list', () => {
     });
   });
 
+  it('declares an output schema for every tool', () => {
+    // Without one the model receives a JSON blob as text and has to guess the shape.
+    tools.forEach((t) => {
+      expect(t.outputSchema).toBeDefined();
+      expect(t.outputSchema.type).toBe('object');
+    });
+  });
+
+  it('gives every tool an icon', () => {
+    tools.forEach((t) => {
+      expect(t.icons?.[0]?.src).toMatch(/^data:image\/svg\+xml/);
+      expect(t.icons[0].mimeType).toBe('image/svg+xml');
+    });
+  });
+
   it('has no duplicate tool names', () => {
     const names = tools.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe('prompts', () => {
+  it('advertises the prompts capability', () => {
+    expect(client.getServerCapabilities()).toHaveProperty('prompts');
+  });
+
+  it('lists prompts with arguments', async () => {
+    const { prompts } = await client.listPrompts();
+    expect(prompts.length).toBeGreaterThan(0);
+    prompts.forEach((p) => {
+      expect(p.name).toMatch(/^[a-z_]+$/);
+      expect(typeof p.description).toBe('string');
+    });
+    expect(prompts.map((p) => p.name)).toContain('community_digest');
+  });
+
+  it('builds a prompt from its arguments', async () => {
+    const res = await client.getPrompt({
+      name: 'community_digest',
+      arguments: { community: 'apiclub', count: '5' },
+    });
+    const text = res.messages[0].content.text;
+    expect(text).toContain('apiclub');
+    expect(text).toContain('5');
+    // A prompt is only useful if it points at the tools that answer it.
+    expect(text).toMatch(/vk_wall_get/);
+  });
+
+  it('rejects a prompt that is missing a required argument', async () => {
+    await expect(client.getPrompt({ name: 'community_digest', arguments: {} })).rejects.toThrow(
+      /community/i
+    );
+  });
+
+  it('rejects an unknown prompt', async () => {
+    await expect(client.getPrompt({ name: 'nope', arguments: {} })).rejects.toThrow(/Unknown prompt/i);
   });
 });
 

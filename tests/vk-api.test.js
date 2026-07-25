@@ -20,8 +20,24 @@ let client;
 let transport;
 /** Requests the server made to the fake VK API. */
 let received = [];
+/**
+ * What the real VK returns for each method, in the shape the server's output
+ * schemas expect: a list envelope for most, an ID for creates, the number 1 for
+ * "done". Used when a test does not care about the payload.
+ */
+const defaultFor = (method) => {
+  if (method === 'wall.post') return { response: { post_id: 1 } };
+  if (method === 'wall.createComment') return { response: { comment_id: 1 } };
+  if (['wall.edit', 'wall.delete', 'groups.join'].includes(method)) return { response: 1 };
+  if (method === 'groups.getById') return { response: { groups: [] } };
+  if (method === 'photos.getWallUploadServer') return { response: { upload_url: 'http://127.0.0.1:1/upload' } };
+  if (method === 'photos.saveWallPhoto') return { response: [{ owner_id: -1, id: 2 }] };
+  if (['users.get', 'stats.get'].includes(method)) return { response: [] };
+  return { response: { count: 0, items: [] } };
+};
+
 /** Response the fake VK API returns next: an object, or a function per call. */
-let nextResponse = { response: { ok: true } };
+let nextResponse = null;
 /** HTTP status the fake VK API answers with. */
 let httpStatus = 200;
 /** Raw body override, for non-JSON responses. */
@@ -40,7 +56,8 @@ beforeAll(async () => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
-      received.push({ method: req.url.replace(/^\/+/, ''), body });
+      const method = req.url.replace(/^\/+/, '');
+      received.push({ method, body });
       res.statusCode = httpStatus;
       if (rawBody !== null) {
         res.setHeader('content-type', 'text/html');
@@ -48,7 +65,10 @@ beforeAll(async () => {
         return;
       }
       res.setHeader('content-type', 'application/json');
-      const payload = typeof nextResponse === 'function' ? nextResponse() : nextResponse;
+      const payload =
+        typeof nextResponse === 'function'
+          ? nextResponse()
+          : nextResponse ?? defaultFor(method);
       res.end(JSON.stringify(payload));
     });
   });
@@ -74,7 +94,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   received = [];
-  nextResponse = { response: { ok: true } };
+  nextResponse = null;
   httpStatus = 200;
   rawBody = null;
 });
@@ -182,6 +202,50 @@ describe('optional parameters', () => {
     const params = lastParams();
     expect(params.owner_id).toBe('0');
     expect(params.count).toBe('0');
+  });
+});
+
+describe('structured output', () => {
+  it('returns structuredContent alongside the text', async () => {
+    nextResponse = { response: { count: 2, items: [{ id: 1 }, { id: 2 }] } };
+    const res = await client.callTool({ name: 'vk_wall_get', arguments: { domain: 'durov' } });
+    expect(res.structuredContent).toEqual({ count: 2, items: [{ id: 1 }, { id: 2 }] });
+    // Text is kept for clients that do not read structuredContent.
+    expect(JSON.parse(res.content[0].text).count).toBe(2);
+  });
+
+  it('wraps a bare array so structuredContent is always an object', async () => {
+    // users.get answers with an array, but structuredContent must be an object.
+    nextResponse = { response: [{ id: 1, first_name: 'Test' }] };
+    const res = await client.callTool({ name: 'vk_users_get', arguments: { user_ids: '1' } });
+    expect(res.structuredContent.items).toHaveLength(1);
+  });
+
+  it('turns VK\'s bare 1 into an explicit success flag', async () => {
+    // wall.delete answers with the number 1.
+    nextResponse = { response: 1 };
+    const res = await client.callTool({ name: 'vk_wall_delete', arguments: { post_id: 1 } });
+    expect(res.structuredContent).toEqual({ success: true });
+  });
+});
+
+describe('error signalling', () => {
+  it('flags a failed call with isError', async () => {
+    // Without isError the client shows the error text as a successful result.
+    nextResponse = { error: { error_code: 5, error_msg: 'User authorization failed.' } };
+    const res = await client.callTool({ name: 'vk_users_get', arguments: { user_ids: '1' } });
+    expect(res.isError).toBe(true);
+  });
+
+  it('does not flag a successful call', async () => {
+    const res = await client.callTool({ name: 'vk_users_get', arguments: { user_ids: '1' } });
+    expect(res.isError).toBeFalsy();
+  });
+
+  it('flags an unknown tool as an error', async () => {
+    const res = await client.callTool({ name: 'vk_nope', arguments: {} });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toMatch(/Unknown tool/i);
   });
 });
 

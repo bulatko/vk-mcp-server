@@ -11,6 +11,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { createRequire } from 'node:module';
 
@@ -453,6 +455,118 @@ const tools = [
   },
 ];
 
+// Output schemas. A tool that declares one must return structuredContent that
+// validates against it, so these stay deliberately loose: VK adds fields over
+// time and a strict schema would reject perfectly good responses. They describe
+// the shape the model can rely on, not every field VK might send.
+const listOutput = (itemsDescription) => ({
+  type: 'object',
+  properties: {
+    count: {
+      type: 'number',
+      description: 'Total number of matches on VK, which is usually larger than the returned page',
+    },
+    items: { type: 'array', description: itemsDescription, items: { type: 'object' } },
+  },
+  required: ['items'],
+});
+
+const successOutput = {
+  type: 'object',
+  properties: { success: { type: 'boolean', description: 'Whether VK accepted the change' } },
+  required: ['success'],
+};
+
+const OUTPUT_SCHEMAS = {
+  vk_users_get: listOutput('User profiles'),
+  vk_users_search: listOutput('Matching user profiles'),
+  vk_wall_get: listOutput('Wall posts, newest first'),
+  vk_wall_get_by_id: listOutput('The requested posts'),
+  vk_groups_get: listOutput('Communities the user belongs to'),
+  vk_groups_search: listOutput('Matching communities'),
+  vk_groups_get_members: listOutput('Member IDs, or profiles when fields are requested'),
+  vk_friends_get: listOutput('Friend IDs, or profiles when fields are requested'),
+  vk_newsfeed_get: listOutput('Newsfeed entries'),
+  vk_likes_get: listOutput('Users who reacted to the object'),
+  vk_photos_get: listOutput('Photos in the album'),
+  vk_stats_get: listOutput('One entry per statistics period'),
+  vk_groups_get_by_id: {
+    type: 'object',
+    properties: { groups: { type: 'array', description: 'Community profiles', items: { type: 'object' } } },
+  },
+  vk_wall_post: {
+    type: 'object',
+    properties: { post_id: { type: 'number', description: 'ID of the published post' } },
+    required: ['post_id'],
+  },
+  vk_wall_create_comment: {
+    type: 'object',
+    properties: { comment_id: { type: 'number', description: 'ID of the created comment' } },
+    required: ['comment_id'],
+  },
+  vk_photos_upload_wall: {
+    type: 'object',
+    properties: {
+      attachment: {
+        type: 'string',
+        description: 'Attachment string such as photo-1_2, ready to pass to vk_wall_post',
+      },
+      id: { type: 'number', description: 'Photo ID' },
+      owner_id: { type: 'number', description: 'Owner of the uploaded photo' },
+    },
+    required: ['attachment'],
+  },
+  vk_wall_edit: successOutput,
+  vk_wall_delete: successOutput,
+  vk_groups_join: successOutput,
+};
+
+// Per-area icons (SEP-973). Inline SVG data URIs keep them dependency-free and
+// offline; they use currentColor so they follow the client's light or dark theme.
+const icon = (paths) => [
+  {
+    src:
+      'data:image/svg+xml;utf8,' +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`
+      ),
+    mimeType: 'image/svg+xml',
+    sizes: ['any'],
+  },
+];
+
+const ICONS = {
+  user: icon('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>'),
+  wall: icon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h10M7 17h6"/>'),
+  group: icon('<circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15.5 20c0-2.2 1.5-4 3.5-4s2 1 2 4"/>'),
+  photo: icon('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-4 4-2-2-4 4"/>'),
+  chart: icon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+  heart: icon('<path d="M12 20s-7-4.5-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.5 12 20 12 20z"/>'),
+  search: icon('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),
+};
+
+const TOOL_ICONS = {
+  vk_users_get: ICONS.user,
+  vk_users_search: ICONS.search,
+  vk_friends_get: ICONS.user,
+  vk_wall_get: ICONS.wall,
+  vk_wall_get_by_id: ICONS.wall,
+  vk_wall_post: ICONS.wall,
+  vk_wall_edit: ICONS.wall,
+  vk_wall_delete: ICONS.wall,
+  vk_wall_create_comment: ICONS.wall,
+  vk_newsfeed_get: ICONS.wall,
+  vk_groups_get: ICONS.group,
+  vk_groups_get_by_id: ICONS.group,
+  vk_groups_get_members: ICONS.group,
+  vk_groups_join: ICONS.group,
+  vk_groups_search: ICONS.search,
+  vk_photos_get: ICONS.photo,
+  vk_photos_upload_wall: ICONS.photo,
+  vk_stats_get: ICONS.chart,
+  vk_likes_get: ICONS.heart,
+};
+
 // Tools that change something on VK, and whether the change destroys or
 // overwrites existing data. Everything not listed here is read-only.
 const WRITING_TOOLS = {
@@ -468,6 +582,9 @@ const WRITING_TOOLS = {
 // a wall lookup while still asking before deleting a post. Derived from one
 // table instead of repeated per tool, so a new tool is read-only by default.
 for (const tool of tools) {
+  if (OUTPUT_SCHEMAS[tool.name]) tool.outputSchema = OUTPUT_SCHEMAS[tool.name];
+  if (TOOL_ICONS[tool.name]) tool.icons = TOOL_ICONS[tool.name];
+
   const write = WRITING_TOOLS[tool.name];
   tool.annotations = {
     readOnlyHint: !write,
@@ -675,11 +792,101 @@ async function handleToolCall(name, args) {
         throw new Error(`Unknown tool: ${name}`);
     }
 
-    return JSON.stringify(result, null, 2);
+    return result;
   } catch (error) {
-    return JSON.stringify({ error: error.message });
+    // Rethrow so the caller can flag it as a tool execution error. Swallowing it
+    // into a plain string made every failure look like a successful result.
+    throw error;
   }
 }
+
+/**
+ * VK answers with an object for most methods, a bare array for a few
+ * (users.get, stats.get) and the number 1 for "it worked" (wall.delete,
+ * groups.join). structuredContent has to be an object, so normalise.
+ */
+function toStructuredContent(result) {
+  if (result === null || result === undefined) return {};
+  if (Array.isArray(result)) return { items: result };
+  if (typeof result !== 'object') return { success: Boolean(result) };
+  return result;
+}
+
+// ============================================
+// PROMPTS
+// ============================================
+
+// Prompts are the entry points a user sees in their client. They exist so that
+// someone who has never read the tool list can still get something useful out
+// of the server on the first try.
+const prompts = [
+  {
+    name: 'community_digest',
+    title: 'Digest a VK community',
+    description: 'Summarise what a community has been posting lately, with themes and standout posts.',
+    arguments: [
+      { name: 'community', description: 'Short address or numeric ID, e.g. apiclub', required: true },
+      { name: 'count', description: 'How many recent posts to read (default 20)', required: false },
+    ],
+    build: ({ community, count = '20' }) =>
+      `Read the last ${count} posts from the VK community "${community}" and write a digest.\n\n` +
+      `Use vk_groups_get_by_id to identify the community, then vk_wall_get with domain="${community}" ` +
+      `and count=${count}.\n\n` +
+      'Cover: what the community is about, the recurring themes across these posts, ' +
+      'the two or three posts that stand out and why, and the posting cadence. ' +
+      'Quote sparingly and link posts as https://vk.com/wall{owner_id}_{post_id}.',
+  },
+  {
+    name: 'engagement_report',
+    title: 'Analyse engagement',
+    description: 'Find which posts resonated and what they have in common.',
+    arguments: [
+      { name: 'community', description: 'Short address or numeric ID', required: true },
+      { name: 'count', description: 'How many recent posts to consider (default 50)', required: false },
+    ],
+    build: ({ community, count = '50' }) =>
+      `Analyse engagement for the VK community "${community}".\n\n` +
+      `Fetch the last ${count} posts with vk_wall_get (domain="${community}", count=${count}). ` +
+      'Each post carries likes, reposts, comments and views counts — rank by likes and by ' +
+      'comments separately, since they measure different things.\n\n' +
+      'Report: the top five posts by each measure, what the winners have in common ' +
+      '(format, length, media, time of day, topic), what the weakest posts share, and ' +
+      'two concrete recommendations. Base every claim on the numbers you fetched, not on assumptions.',
+  },
+  {
+    name: 'audience_snapshot',
+    title: 'Describe a community audience',
+    description: 'Sample the members of a community and describe who they are.',
+    arguments: [
+      { name: 'community', description: 'Short address or numeric ID', required: true },
+      { name: 'sample', description: 'How many members to sample (default 200)', required: false },
+    ],
+    build: ({ community, sample = '200' }) =>
+      `Describe the audience of the VK community "${community}".\n\n` +
+      `Use vk_groups_get_by_id for the size and topic, then vk_groups_get_members with ` +
+      `group_id="${community}", count=${sample} and fields="sex,city,bdate,last_seen" to sample members.\n\n` +
+      'Report the split by sex, the most common cities, a rough age picture from bdate where ' +
+      'present, and how many look active from last_seen. ' +
+      `State explicitly that this is a sample of ${sample}, not the whole audience, and note ` +
+      'that VK hides some fields, so percentages are of the members who exposed that field.',
+  },
+  {
+    name: 'find_communities',
+    title: 'Find communities on a topic',
+    description: 'Search VK communities on a topic and compare the candidates.',
+    arguments: [
+      { name: 'topic', description: 'What to search for, e.g. indie music', required: true },
+      { name: 'count', description: 'How many candidates to compare (default 10)', required: false },
+    ],
+    build: ({ topic, count = '10' }) =>
+      `Find VK communities about "${topic}".\n\n` +
+      `Search with vk_groups_search (q="${topic}", count=${count}), then pull details for the ` +
+      'candidates with vk_groups_get_by_id using fields="description,members_count,activity".\n\n' +
+      'Present a table of name, members, activity and a one-line description, ordered by size. ' +
+      'Then say which two or three are worth following and why. ' +
+      'Flag any that look dormant or spammy rather than silently including them.',
+  },
+];
 
 // ============================================
 // SERVER SETUP
@@ -687,15 +894,57 @@ async function handleToolCall(name, args) {
 
 const server = new Server(
   { name: 'vk-mcp-server', version: VERSION },
-  { capabilities: { tools: {} } }
+  { capabilities: { tools: {}, prompts: {} } }
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 
+server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+  prompts: prompts.map(({ build, ...prompt }) => prompt),
+}));
+
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const prompt = prompts.find((p) => p.name === request.params.name);
+  if (!prompt) throw new Error(`Unknown prompt: ${request.params.name}`);
+
+  const args = request.params.arguments || {};
+  const missing = (prompt.arguments || [])
+    .filter((a) => a.required && !args[a.name])
+    .map((a) => a.name);
+  if (missing.length) {
+    throw new Error(`Missing required argument(s) for ${prompt.name}: ${missing.join(', ')}`);
+  }
+
+  return {
+    description: prompt.description,
+    messages: [
+      { role: 'user', content: { type: 'text', text: prompt.build(args) } },
+    ],
+  };
+});
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  const result = await handleToolCall(name, args || {});
-  return { content: [{ type: 'text', text: result }] };
+
+  try {
+    const result = await handleToolCall(name, args || {});
+    const response = {
+      // Text stays for clients that do not read structuredContent yet.
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    };
+    if (OUTPUT_SCHEMAS[name]) {
+      response.structuredContent = toStructuredContent(result);
+    }
+    return response;
+  } catch (error) {
+    // A failed VK call is a tool execution error, not a protocol error: the
+    // model sees it, can explain it or retry with different arguments. Without
+    // isError the client treats the message as a successful result.
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ error: error.message }, null, 2) }],
+      isError: true,
+    };
+  }
 });
 
 async function main() {
