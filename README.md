@@ -43,12 +43,23 @@
 
 ## Quick Start
 
-### One-click install (recommended)
+### Claude Desktop — one click
 
 Download the latest `.mcpb` bundle from the
 [releases page](https://github.com/bulatko/vk-mcp-server/releases/latest) and
-open it in Claude Desktop. It installs the server, asks for your VK token in a
-form field, and stores it securely — no Node.js, no config files, no terminal.
+open it. It installs the server, asks for your VK token in a form field, and
+stores it securely — no Node.js, no config files, no terminal.
+
+### VS Code — one click
+
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_VK_MCP-0098FF?logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22vk%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22vk-mcp-server%22%5D%2C%22env%22%3A%7B%22VK_ACCESS_TOKEN%22%3A%22%24%7Binput%3Avk_token%7D%22%7D%2C%22inputs%22%3A%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22vk_token%22%2C%22description%22%3A%22VK%20access%20token%22%2C%22password%22%3Atrue%7D%5D%7D)
+
+VS Code prompts for your VK token and keeps it out of the config file. From a
+terminal instead:
+
+```bash
+code --add-mcp '{"name":"vk","command":"npx","args":["-y","vk-mcp-server"],"env":{"VK_ACCESS_TOKEN":"your_token"}}'
+```
 
 ### npm
 
