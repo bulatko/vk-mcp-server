@@ -35,6 +35,35 @@ const RETRY_BASE_MS = 500;
 const VK_ERROR_RATE_LIMIT = 6;
 const VK_ERROR_CAPTCHA = 14;
 
+/**
+ * VK error codes say what went wrong but never what to do about it, and several
+ * of them look identical from the outside ("it just stopped working") while
+ * having completely different fixes. These hints are what turns a support
+ * question into something the user can act on themselves.
+ */
+const ERROR_HINTS = {
+  5: 'The token is not valid any more. Get a new one with `npx vk-mcp-server --login <APP_ID>`.',
+  7: 'The token lacks the permission this method needs. Re-issue it including the relevant scope (wall, photos, groups, friends or stats).',
+  8:
+    'This usually means the VK app that issued the token has been blocked — every token from a blocked app fails this way, however valid it looks. ' +
+    'Create your own Standalone app at https://vk.com/editapp?act=create and issue a fresh token from it.',
+  15: 'Access denied. The owner may have restricted this data (a private profile, or a community that hides its members), or the token belongs to an account without the rights to see it.',
+  17: 'VK wants the account validated. Sign in to vk.com in a browser, complete the check, then retry.',
+  18: 'That user is deleted or banned.',
+  27: 'Community authorisation failed. Create a token under Manage → API usage → Access tokens in the community you want to act as.',
+  28:
+    'This method needs a user or community token; a service token cannot call it. ' +
+    'Run `npx vk-mcp-server --login <APP_ID>` for a user token, or create a community token under Manage → API usage → Access tokens.',
+  29: 'The per-method quota for this token is used up. Wait, or spread the calls out.',
+  100: 'VK rejected one of the parameters. Check IDs and required arguments — community IDs are positive here, wall owner IDs are negative.',
+  113: 'No such user ID.',
+  203: 'Access to that community is denied for this token.',
+  214: 'Posting to that wall is denied — the token needs the wall scope and the account needs the right to post there.',
+  1051:
+    'A service token cannot call this method. ' +
+    'Use a user token (`npx vk-mcp-server --login <APP_ID>`) or a community token, depending on whose data you are after.',
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class VKClient {
@@ -90,7 +119,8 @@ class VKClient {
         );
       }
 
-      throw new Error(`VK API Error ${code}: ${msg}`);
+      const hint = ERROR_HINTS[code];
+      throw new Error(`VK API Error ${code}: ${msg}${hint ? ` — ${hint}` : ''}`);
     }
 
     return data.response;
@@ -169,13 +199,41 @@ class VKClient {
 // SETUP
 // ============================================
 
-// Token helper runs instead of the server, so it must come before the check below.
+// Subcommands run instead of the server, so they come before the token check.
 if (process.argv.includes('--login')) {
   const { runLogin } = await import('./login.js');
   await runLogin().catch((error) => {
     console.error(`Login failed: ${error.message}`);
     process.exit(1);
   });
+  process.exit(0);
+}
+
+if (process.argv.includes('--check')) {
+  const { runCheck } = await import('./check.js');
+  await runCheck().catch((error) => {
+    console.error(`Check failed: ${error.message}`);
+    process.exit(1);
+  });
+  process.exit(0);
+}
+
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.error(`vk-mcp-server ${VERSION} — MCP server for the VK API
+
+Usage:
+  npx vk-mcp-server                 run the MCP server (expects VK_ACCESS_TOKEN)
+  npx vk-mcp-server --login <APP_ID>  get a token through VK ID in your browser
+  npx vk-mcp-server --check         report what your token is and what it can do
+  npx vk-mcp-server --help          this message
+
+Environment:
+  VK_ACCESS_TOKEN   required to run the server
+  VK_TIMEOUT_MS     abort a VK request after this many ms (default 30000)
+  VK_API_BASE       point at an API mirror or proxy
+  VK_LOGIN_PORT     local port used by --login (default 8790)
+
+Docs: https://github.com/bulatko/vk-mcp-server`);
   process.exit(0);
 }
 

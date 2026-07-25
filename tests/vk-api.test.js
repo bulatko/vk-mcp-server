@@ -263,6 +263,27 @@ describe('VK error handling', () => {
     expect(JSON.stringify(result)).not.toContain('test_token_not_real');
   });
 
+  it('tells the user what to do about a blocked app', async () => {
+    // Error 8 is indistinguishable from a bad token without this hint — the
+    // token is fine, the app that issued it is not.
+    nextResponse = { error: { error_code: 8, error_msg: 'Invalid request: Application is blocked' } };
+    const result = await call('vk_users_get', { user_ids: '1' });
+    expect(result.error).toMatch(/blocked/i);
+    expect(result.error).toMatch(/editapp|own Standalone app/i);
+  });
+
+  it('tells the user a service token cannot call user methods', async () => {
+    nextResponse = { error: { error_code: 1051, error_msg: 'Method is not available for this profile type' } };
+    const result = await call('vk_friends_get', { user_id: 1 });
+    expect(result.error).toMatch(/--login|community token/i);
+  });
+
+  it('tells the user to re-issue an expired token', async () => {
+    nextResponse = { error: { error_code: 5, error_msg: 'User authorization failed' } };
+    const result = await call('vk_users_get', { user_ids: '1' });
+    expect(result.error).toMatch(/--login/);
+  });
+
   it('keeps serving after an error', async () => {
     nextResponse = { error: { error_code: 6, error_msg: 'Too many requests per second.' } };
     await call('vk_users_get', { user_ids: '1' });

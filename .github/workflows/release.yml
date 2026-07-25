@@ -1,0 +1,72 @@
+name: Release
+
+# Publishing used to be a manual sequence: build the bundle, cut a release,
+# npm publish, then authorise the MCP registry in a browser because its token
+# expires within the hour. Pushing a tag now does all of it.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the GitHub release
+  id-token: write # OIDC: MCP registry auth and npm provenance, so no stored secrets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node 24 ships the npm version that can publish over OIDC.
+          node-version: '24.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check the tag matches the version everywhere
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          for file in package.json manifest.json server.json; do
+            VERSION=$(node -p "require('./$file').version")
+            if [ "$VERSION" != "$TAG" ]; then
+              echo "::error::$file says $VERSION but the tag is $TAG"
+              exit 1
+            fi
+          done
+          echo "all three agree on $TAG"
+
+      - name: Build the .mcpb bundle
+        run: npm run build:mcpb
+
+      - name: Publish to npm
+        # Trusted publishing: npm accepts this workflow's OIDC identity, so no
+        # token is stored anywhere. Configure it once at
+        # npmjs.com → package → Settings → Trusted publisher (repository
+        # bulatko/vk-mcp-server, workflow release.yml).
+        # Provenance comes along with it, letting anyone verify where the
+        # published tarball was built.
+        run: npm publish --provenance --access public
+
+      - name: Publish to the MCP registry
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+          # OIDC proves this workflow runs in the repository that owns the
+          # io.github.<owner>/* namespace — no token to store or refresh.
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            dist/*.mcpb

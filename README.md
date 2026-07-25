@@ -41,7 +41,9 @@
   clear messages for captchas and HTTP failures
 - **Guided setup**: `npx vk-mcp-server --login` walks the VK ID flow and hands
   you a token — no OAuth wrangling
-- **Tested**: 48 tests driving the real server over the MCP protocol
+- **Self-diagnosing**: `--check` reports which of the three VK token types you
+  have and which tools it can reach, and every VK error carries the fix
+- **Tested**: 58 tests driving the real server over the MCP protocol
 
 ## Quick Start
 
@@ -165,6 +167,40 @@ Add to your project's `.mcp.json`:
 VK rate-limits user tokens to a few calls per second. When it answers with
 error 6 (*too many requests*), the server backs off and retries up to three
 times before giving up, so short bursts of tool calls do not fail outright.
+
+## Command line
+
+| Command | What it does |
+|---------|--------------|
+| `npx vk-mcp-server` | Runs the MCP server (this is what your client calls) |
+| `npx vk-mcp-server --login <APP_ID>` | Gets a token through VK ID in your browser |
+| `npx vk-mcp-server --check` | Reports what your token is and which tools it can use |
+| `npx vk-mcp-server --help` | Lists the commands and environment variables |
+
+## Troubleshooting
+
+Start with:
+
+```bash
+VK_ACCESS_TOKEN=your_token npx vk-mcp-server --check
+```
+
+It identifies which of the three token types you have — user, community or
+service — and probes what that token can actually reach, so you find out up
+front instead of discovering it tool by tool. It never calls a write method.
+
+Common cases:
+
+| What you see | What it means |
+|--------------|---------------|
+| `error 8: Application is blocked` | The VK app that issued the token is blocked. Every token from it fails this way, however valid the token looks. Create your own app and issue a fresh token. |
+| `error 5: User authorization failed` | The token expired or was revoked — run `--login` again. |
+| `error 1051` or `error 28` | A service token cannot call user methods. Use a user or community token. |
+| `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |
+| `Security Error` when authorising | The old implicit OAuth flow. Use `--login`, which does the current VK ID flow. |
+
+The server turns these into messages that say what to do, so the model can
+usually explain the fix without you reading this table.
 
 ## Available Tools
 
