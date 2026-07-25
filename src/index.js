@@ -65,6 +65,18 @@ const ERROR_HINTS = {
 };
 
 /**
+ * Raised on the first tool call when no token is configured. The server itself
+ * starts fine without one — see the note above the startup check — so this is
+ * where a missing token has to be explained, and it has to be explained to
+ * whoever is reading the chat, not to a terminal nobody is watching.
+ */
+const NO_TOKEN_MESSAGE =
+  'No VK token configured. This server needs VK_ACCESS_TOKEN set in its environment. ' +
+  'Run `npx vk-mcp-server --login <APP_ID>` to obtain one through VK ID in your browser, ' +
+  'or follow https://github.com/bulatko/vk-mcp-server/blob/main/docs/SETUP.md. ' +
+  'Listing tools works without a token; calling them does not.';
+
+/**
  * Subcodes override the code-level hint where they mean something more
  * specific. 1130 is the one that catches people out: the token is valid, the
  * account is fine, and it still fails — because VK bound it to the IP that
@@ -87,6 +99,10 @@ class VKClient {
   }
 
   async call(method, params = {}, attempt = 0) {
+    // Every path to VK goes through here, including the two-step photo upload,
+    // so one check covers the whole tool surface.
+    if (!this.accessToken) throw new Error(NO_TOKEN_MESSAGE);
+
     const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
     const body = new URLSearchParams({
       ...clean,
@@ -236,13 +252,13 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.error(`vk-mcp-server ${VERSION} — MCP server for the VK API
 
 Usage:
-  npx vk-mcp-server                 run the MCP server (expects VK_ACCESS_TOKEN)
+  npx vk-mcp-server                 run the MCP server (needs VK_ACCESS_TOKEN to call tools)
   npx vk-mcp-server --login <APP_ID>  get a token through VK ID in your browser
   npx vk-mcp-server --check         report what your token is and what it can do
   npx vk-mcp-server --help          this message
 
 Environment:
-  VK_ACCESS_TOKEN   required to run the server
+  VK_ACCESS_TOKEN   required for tool calls; the server starts and lists tools without it
   VK_TIMEOUT_MS     abort a VK request after this many ms (default 30000)
   VK_API_BASE       point at an API mirror or proxy
   VK_LOGIN_PORT     local port used by --login (default 8790)
@@ -251,14 +267,14 @@ Docs: https://github.com/bulatko/vk-mcp-server`);
   process.exit(0);
 }
 
+// A missing token used to be fatal here. It cannot be: discovery has to work
+// without credentials. Registries introspect the server by starting it with an
+// empty environment and reading tools/list — refusing to boot made us look like
+// a server with no tools at all. Clients hit the same wall from the other side:
+// a user who installs the bundle before pasting a token sees the process die
+// with a message on a stream no chat window shows. So we start regardless, and
+// the first tool call is what explains the missing token, in the chat.
 const VK_ACCESS_TOKEN = process.env.VK_ACCESS_TOKEN;
-
-if (!VK_ACCESS_TOKEN) {
-  console.error('Error: VK_ACCESS_TOKEN environment variable is required.');
-  console.error('Run `npx vk-mcp-server --login <APP_ID>` to obtain one interactively,');
-  console.error('or see https://github.com/bulatko/vk-mcp-server#getting-vk-access-token');
-  process.exit(1);
-}
 
 const vk = new VKClient(VK_ACCESS_TOKEN);
 
@@ -1077,6 +1093,10 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('VK MCP Server running on stdio');
+  if (!VK_ACCESS_TOKEN) {
+    console.error('No VK_ACCESS_TOKEN set — tools are listed but will fail when called.');
+    console.error('Get one with `npx vk-mcp-server --login <APP_ID>`.');
+  }
 }
 
 main().catch((error) => {

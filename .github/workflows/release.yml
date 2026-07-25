@@ -51,7 +51,20 @@ jobs:
         # bulatko/vk-mcp-server, workflow release.yml).
         # Provenance comes along with it, letting anyone verify where the
         # published tarball was built.
-        run: npm publish --provenance --access public
+        #
+        # This is the one step that can fail for a reason living outside the
+        # repository — the trusted publisher is configured in an npm account,
+        # not here — and a release that reaches neither the registry nor GitHub
+        # because npm said no is worse than one that reaches both. So it does
+        # not stop the run; the last step reports what actually shipped.
+        continue-on-error: true
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "vk-mcp-server@$VERSION" version >/dev/null 2>&1; then
+            echo "::notice::$VERSION is already on npm — nothing to publish"
+            exit 0
+          fi
+          npm publish --provenance --access public
 
       - name: Publish to the MCP registry
         run: |
@@ -70,3 +83,14 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             dist/*.mcpb
+
+      - name: Report which channels the release reached
+        # A green run must not imply npm accepted the package — see the note on
+        # the publish step. Say plainly which channel is missing the version.
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "vk-mcp-server@$VERSION" version >/dev/null 2>&1; then
+            echo "npm: $VERSION published"
+          else
+            echo "::warning::npm does not have $VERSION. Set up the trusted publisher at npmjs.com → vk-mcp-server → Settings → Trusted publisher, then re-run this workflow."
+          fi

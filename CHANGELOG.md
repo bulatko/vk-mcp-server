@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.3
+
+- The server starts without `VK_ACCESS_TOKEN` and lists its tools. It used to
+  exit instead, which broke it in two places: registries introspect a server by
+  starting it with an empty environment and reading `tools/list`, so we were
+  published as a server with no tools; and anyone who installed the bundle
+  before pasting a token watched the process die with the reason on a stream
+  their client does not show
+- A tool call with no token configured now returns the reason, in the chat,
+  naming the variable and how to get a value for it
+
 ## 0.4.2
 
 - Tool descriptions rewritten: sixteen of nineteen were under sixty characters

@@ -26,7 +26,7 @@ beforeAll(async () => {
   transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER],
-    // Server refuses to boot without a token; never a real one in tests.
+    // Never a real token in tests.
     env: { ...process.env, VK_ACCESS_TOKEN: 'test_token_not_real' },
   });
   client = new Client({ name: 'vk-mcp-tests', version: '1.0.0' }, { capabilities: {} });
@@ -243,5 +243,53 @@ describe('tools/call', () => {
 
     // Server must still be alive and serving after a bad call.
     expect((await client.listTools()).tools.length).toBeGreaterThan(0);
+  });
+});
+
+describe('without a token', () => {
+  // Registries introspect by starting the server with no credentials at all.
+  // When this failed, Glama listed us with an empty tool array and the
+  // awesome-mcp-servers listing check would not pass.
+  let bare;
+  let bareTransport;
+
+  beforeAll(async () => {
+    const { VK_ACCESS_TOKEN, ...envWithoutToken } = process.env;
+    bareTransport = new StdioClientTransport({
+      command: process.execPath,
+      args: [SERVER],
+      env: envWithoutToken,
+    });
+    bare = new Client({ name: 'vk-mcp-tests-bare', version: '1.0.0' }, { capabilities: {} });
+    await bare.connect(bareTransport);
+  }, 30000);
+
+  afterAll(async () => {
+    await bare?.close();
+  });
+
+  it('still completes the handshake', () => {
+    expect(bare.getServerVersion().name).toBe('vk-mcp-server');
+  });
+
+  it('still lists every tool', async () => {
+    const bareTools = (await bare.listTools()).tools;
+    expect(bareTools.map((t) => t.name).sort()).toEqual(tools.map((t) => t.name).sort());
+  });
+
+  it('still lists prompts', async () => {
+    expect((await bare.listPrompts()).prompts.length).toBeGreaterThan(0);
+  });
+
+  it('fails a tool call with an explanation instead of dying', async () => {
+    const res = await bare.callTool({ name: 'vk_users_get', arguments: { user_ids: 'durov' } });
+    expect(res.isError).toBe(true);
+    // The message has to name the variable and the way to get a value for it —
+    // this text is all the user sees.
+    expect(res.content[0].text).toMatch(/VK_ACCESS_TOKEN/);
+    expect(res.content[0].text).toMatch(/--login/);
+
+    // And the server survives it, so the next call after they fix it works.
+    expect((await bare.listTools()).tools.length).toBeGreaterThan(0);
   });
 });
