@@ -585,6 +585,24 @@ const listOutput = (itemsDescription) => ({
       description: 'Total number of matches on VK, which is usually larger than the returned page',
     },
     items: { type: 'array', description: itemsDescription, items: { type: 'object' } },
+    pagination: {
+      type: 'object',
+      description:
+        'Where this page sits in the whole result. Call the tool again with offset set to next_offset to continue; when next_offset is null there is nothing left to fetch.',
+      properties: {
+        total: { type: 'number', description: 'How many matches VK has in total' },
+        returned: { type: 'number', description: 'How many came back on this page' },
+        offset: { type: 'number', description: 'The offset this page started at' },
+        next_offset: {
+          type: ['number', 'null'],
+          description: 'Offset for the next page, or null when this page is the last one',
+        },
+        next_from: {
+          type: 'string',
+          description: 'Cursor for the next page, on the tools that page by cursor rather than offset',
+        },
+      },
+    },
   },
   required: ['items'],
 });
@@ -923,6 +941,35 @@ async function handleToolCall(name, args) {
  * (users.get, stats.get) and the number 1 for "it worked" (wall.delete,
  * groups.join). structuredContent has to be an object, so normalise.
  */
+/**
+ * VK answers a list request with a total and one page of items, and nothing
+ * that says how to reach the next one. The model is left to either stop at the
+ * first page believing it has everything, or invent an offset. This states the
+ * arithmetic: what came back, where it started, and the offset that continues
+ * from here — null when the page is the last.
+ */
+function paginationFor(args, result) {
+  if (!result || typeof result !== 'object' || !Array.isArray(result.items)) return null;
+
+  // The newsfeed pages by cursor, not by offset: VK hands back the token for
+  // the next page and an offset means nothing there.
+  if (result.next_from) return { returned: result.items.length, next_from: result.next_from };
+
+  if (typeof result.count !== 'number') return null;
+
+  const offset = Number(args.offset) || 0;
+  const returned = result.items.length;
+  const next = offset + returned;
+  return {
+    total: result.count,
+    returned,
+    offset,
+    // A page that came back empty means VK has nothing more to give, whatever
+    // the total says — some endpoints count matches the token cannot read.
+    next_offset: returned > 0 && next < result.count ? next : null,
+  };
+}
+
 function toStructuredContent(result) {
   if (result === null || result === undefined) return {};
   if (Array.isArray(result)) return { items: result };
@@ -1070,12 +1117,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     const result = await handleToolCall(name, args || {});
+    const pagination = paginationFor(args || {}, result);
+    const payload = pagination ? { ...result, pagination } : result;
     const response = {
       // Text stays for clients that do not read structuredContent yet.
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
     };
     if (OUTPUT_SCHEMAS[name]) {
-      response.structuredContent = toStructuredContent(result);
+      response.structuredContent = toStructuredContent(payload);
     }
     return response;
   } catch (error) {

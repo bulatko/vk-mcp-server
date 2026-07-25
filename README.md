@@ -35,6 +35,9 @@
   marked as write operations so your client can ask first
 - **Structured output**: every tool declares an output schema, so the model gets
   typed data instead of a JSON blob it has to parse out of text
+- **Pagination that explains itself**: list results say how many matches exist
+  and which offset continues from here, so the model can page through a wall
+  instead of stopping at the first twenty posts
 - **Prompts**: ready-made workflows — community digest, engagement report,
   audience snapshot, community search
 - **Resilient**: request timeouts, automatic backoff when VK rate-limits, and
@@ -43,7 +46,7 @@
   you a token — no OAuth wrangling
 - **Self-diagnosing**: `--check` reports which of the three VK token types you
   have and which tools it can reach, and every VK error carries the fix
-- **Tested**: 65 tests driving the real server over the MCP protocol
+- **Tested**: 71 tests driving the real server over the MCP protocol
 
 ## Quick Start
 

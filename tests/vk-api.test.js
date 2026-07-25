@@ -209,7 +209,11 @@ describe('structured output', () => {
   it('returns structuredContent alongside the text', async () => {
     nextResponse = { response: { count: 2, items: [{ id: 1 }, { id: 2 }] } };
     const res = await client.callTool({ name: 'vk_wall_get', arguments: { domain: 'durov' } });
-    expect(res.structuredContent).toEqual({ count: 2, items: [{ id: 1 }, { id: 2 }] });
+    expect(res.structuredContent).toEqual({
+      count: 2,
+      items: [{ id: 1 }, { id: 2 }],
+      pagination: { total: 2, returned: 2, offset: 0, next_offset: null },
+    });
     // Text is kept for clients that do not read structuredContent.
     expect(JSON.parse(res.content[0].text).count).toBe(2);
   });
@@ -355,5 +359,48 @@ describe('responses', () => {
     const result = await call('vk_wall_get', { domain: 'durov' });
     expect(result.count).toBe(2);
     expect(result.items).toHaveLength(2);
+  });
+});
+
+describe('pagination', () => {
+  // VK reports a total and hands back one page, but never says how to get the
+  // next one. Left to itself the model stops at the first page or guesses.
+  it('says where the next page starts', async () => {
+    nextResponse = { response: { count: 100, items: [{ id: 1 }, { id: 2 }] } };
+    const result = await call('vk_wall_get', { domain: 'durov', count: 2 });
+    expect(result.pagination).toEqual({ total: 100, returned: 2, offset: 0, next_offset: 2 });
+  });
+
+  it('counts from the offset that was asked for', async () => {
+    nextResponse = { response: { count: 100, items: [{ id: 3 }, { id: 4 }] } };
+    const result = await call('vk_wall_get', { domain: 'durov', count: 2, offset: 40 });
+    expect(result.pagination.offset).toBe(40);
+    expect(result.pagination.next_offset).toBe(42);
+  });
+
+  it('says null once the last page is in', async () => {
+    nextResponse = { response: { count: 2, items: [{ id: 1 }, { id: 2 }] } };
+    const result = await call('vk_wall_get', { domain: 'durov' });
+    expect(result.pagination.next_offset).toBeNull();
+  });
+
+  it('stops on an empty page even when the total disagrees', async () => {
+    // Some endpoints count matches the token is not allowed to read, so the
+    // total keeps promising more than VK will ever hand over.
+    nextResponse = { response: { count: 500, items: [] } };
+    const result = await call('vk_groups_get_members', { group_id: 1, offset: 400 });
+    expect(result.pagination.next_offset).toBeNull();
+  });
+
+  it('passes on the cursor for the feeds that page by cursor', async () => {
+    nextResponse = { response: { items: [{ id: 1 }], next_from: '1/abc' } };
+    const result = await call('vk_newsfeed_get', {});
+    expect(result.pagination).toEqual({ returned: 1, next_from: '1/abc' });
+  });
+
+  it('leaves single-object results alone', async () => {
+    nextResponse = { response: { post_id: 42 } };
+    const result = await call('vk_wall_post', { message: 'hi' });
+    expect(result.pagination).toBeUndefined();
   });
 });

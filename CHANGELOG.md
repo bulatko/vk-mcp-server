@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.4
+
+- List results carry a `pagination` block: the total, how many came back, the
+  offset they started at, and the offset that continues from there — `null`
+  when the page is the last. VK reports a total and hands over one page without
+  saying how to reach the next, so the model either stopped at the first page
+  believing it had everything, or guessed an offset. The newsfeed, which pages
+  by cursor, passes its `next_from` through the same field
+
 ## 0.4.3
 
 - The server starts without `VK_ACCESS_TOKEN` and lists its tools. It used to
