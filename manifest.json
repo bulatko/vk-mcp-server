@@ -1,0 +1,56 @@
+{
+  "manifest_version": "0.3",
+  "name": "vk-mcp-server",
+  "display_name": "VK",
+  "version": "0.3.0",
+  "description": "Read and post to VK (VKontakte) — walls, communities, users, photos and stats.",
+  "long_description": "Connects an AI assistant to the VK (VKontakte) social network. Read walls, search users and communities, inspect members and reactions, pull community statistics, and — when you ask it to — publish posts, comments and photos.\n\nRead-only tools are marked as such, so a client can run lookups freely while still asking before anything is posted, edited or deleted.\n\nNeeds a VK access token, which you can create from your VK account in about a minute.",
+  "author": {
+    "name": "bulatko",
+    "url": "https://github.com/bulatko"
+  },
+  "homepage": "https://github.com/bulatko/vk-mcp-server",
+  "documentation": "https://github.com/bulatko/vk-mcp-server#readme",
+  "support": "https://github.com/bulatko/vk-mcp-server/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bulatko/vk-mcp-server"
+  },
+  "license": "MIT",
+  "keywords": ["vk", "vkontakte", "social", "social-network", "posting", "analytics"],
+  "server": {
+    "type": "node",
+    "entry_point": "src/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/src/index.js"],
+      "env": {
+        "VK_ACCESS_TOKEN": "${user_config.vk_access_token}",
+        "VK_TIMEOUT_MS": "${user_config.vk_timeout_ms}"
+      }
+    }
+  },
+  "user_config": {
+    "vk_access_token": {
+      "type": "string",
+      "title": "VK access token",
+      "description": "Create one at https://oauth.vk.com/authorize?client_id=6121396&scope=wall,friends,groups,photos,stats,offline&response_type=token — after authorising, copy the access_token value out of the address bar.",
+      "sensitive": true,
+      "required": true
+    },
+    "vk_timeout_ms": {
+      "type": "number",
+      "title": "Request timeout (ms)",
+      "description": "How long to wait for VK before giving up on a request.",
+      "default": 30000,
+      "required": false
+    }
+  },
+  "tools_generated": true,
+  "prompts_generated": true,
+  "compatibility": {
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

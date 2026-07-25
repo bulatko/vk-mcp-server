@@ -30,25 +30,33 @@
 
 ## Features
 
-- **Read Operations**: Get users, wall posts, groups, friends, newsfeed, photos
-- **Write Operations**: Create posts, add comments
-- **Analytics**: Get community statistics
-- **Secure**: Token-based authentication via environment variable
-- **Tested**: Comprehensive test coverage
-- **Easy Install**: Available on npm and MCP Registry
+- **19 tools** across users, walls, communities, photos, likes and statistics
+- **Read and write**: search and read freely; posting, editing and deleting are
+  marked as write operations so your client can ask first
+- **Structured output**: every tool declares an output schema, so the model gets
+  typed data instead of a JSON blob it has to parse out of text
+- **Prompts**: ready-made workflows — community digest, engagement report,
+  audience snapshot, community search
+- **Resilient**: request timeouts, automatic backoff when VK rate-limits, and
+  clear messages for captchas and HTTP failures
+- **Tested**: 44 tests driving the real server over the MCP protocol
 
 ## Quick Start
 
-### Installation
+### One-click install (recommended)
 
-```bash
-npm install -g vk-mcp-server
-```
+Download the latest `.mcpb` bundle from the
+[releases page](https://github.com/bulatko/vk-mcp-server/releases/latest) and
+open it in Claude Desktop. It installs the server, asks for your VK token in a
+form field, and stores it securely — no Node.js, no config files, no terminal.
 
-Or run directly with npx:
+### npm
+
 ```bash
 npx vk-mcp-server
 ```
+
+Or install globally with `npm install -g vk-mcp-server`.
 
 ### MCP Registry
 
@@ -167,6 +175,18 @@ still asking before a post is edited or deleted.
 | `vk_newsfeed_get` | Get user's newsfeed |
 | `vk_likes_get` | Get users who liked an object, with reaction counts |
 | `vk_stats_get` | Get community statistics (admin only) |
+
+## Prompts
+
+Prompts appear in your client as ready-made workflows — pick one, fill in the
+community, and the model knows which tools to use.
+
+| Prompt | What it does |
+|--------|--------------|
+| `community_digest` | Reads recent posts and summarises themes, standouts and cadence |
+| `engagement_report` | Ranks posts by likes and by comments, then explains what the winners share |
+| `audience_snapshot` | Samples members and describes the audience by sex, city and activity |
+| `find_communities` | Searches communities on a topic and compares the candidates |
 
 ## Usage Examples
 

@@ -1,6 +1,6 @@
 {
   "name": "vk-mcp-server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "mcpName": "io.github.bulatko/vk",
   "description": "Model Context Protocol server for VK (VKontakte) social network API",
   "main": "src/index.js",
@@ -16,7 +16,8 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "build:mcpb": "bash scripts/build-mcpb.sh"
   },
   "keywords": [
     "mcp",
@@ -36,6 +37,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "jest": "^29.7.0"
   },
   "engines": {
