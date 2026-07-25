@@ -85,8 +85,25 @@ export async function runLogin() {
   const appId = process.env.VK_APP_ID || process.argv[process.argv.indexOf('--login') + 1];
 
   if (!appId || appId.startsWith('--')) {
-    console.error('Usage: npx vk-mcp-server --login <APP_ID>   (or set VK_APP_ID)\n');
-    console.error('Create a Standalone app at https://vk.com/editapp?act=create to get an App ID.');
+    console.error(`Usage: npx vk-mcp-server --login <APP_ID>   (or set VK_APP_ID)
+
+You need your own VK app — two minutes, three steps:
+
+  1. Open https://vk.com/editapp?act=create
+     Give it any title, choose platform "Standalone", create it.
+
+  2. Copy the App ID from the settings page (a number, not a secret).
+
+  3. In the same settings, add this to the trusted redirect URIs:
+        ${REDIRECT_URI}
+
+Then run this command again with the App ID.
+
+Only want to read and post in a community you manage? You do not need an app at
+all — open the community, then Manage → API usage → Access tokens → Create
+token, tick "wall" and "photos", and use that instead. It never expires.
+
+Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md`);
     process.exit(1);
   }
 

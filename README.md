@@ -82,54 +82,27 @@ io.github.bulatko/vk
 
 ## Getting VK Access Token
 
-### The easy way
+Two minutes, and you never touch it again. Pick whichever fits:
+
+**Managing a community?** No app needed — open the community → **Manage** →
+**API usage** → **Access tokens** → **Create token**, tick `wall` and `photos`.
+Community tokens do not expire and are not tied to a browser or an IP.
+
+**Acting as yourself?** Create your own Standalone app at
+[vk.com/editapp?act=create](https://vk.com/editapp?act=create), add
+`http://127.0.0.1:8790/callback` to its trusted redirect URIs, then:
 
 ```bash
 npx vk-mcp-server --login <YOUR_APP_ID>
 ```
 
-This opens VK in your browser, waits for you to authorise, and prints the
-token. Nothing is copied out of an address bar.
+It opens VK, you approve, and it prints the token.
 
-You need an App ID first: create a **Standalone** app at
-[vk.com/editapp?act=create](https://vk.com/editapp?act=create), then add
-`http://127.0.0.1:8790/callback` under the app's trusted redirect URIs so VK
-will hand the token back to the helper. (Use `VK_LOGIN_PORT` to pick another
-port — register whichever one you use.)
+Use your own app rather than an App ID from somewhere else: a token dies with
+the app that issued it, and the error gives no hint that this is what happened.
 
-Create your own app rather than reusing an App ID you found somewhere. A VK
-token is bound to the app that issued it: if that app is ever blocked, every
-token it issued stops working and every call answers `error 8: Application is
-blocked`, however valid the token itself looks.
-
-### Doing it by hand
-
-VK now uses VK ID, which is OAuth 2.1 with PKCE. The old implicit flow
-(`response_type=token`) answers `Security Error` for apps created recently, so
-a manual flow means generating a `code_verifier`, hashing it into a
-`code_challenge`, authorising at `https://id.vk.ru/authorize`, and exchanging
-the returned `code` at `https://id.vk.ru/oauth2/auth`. The helper above does
-exactly this — there is little reason to repeat it by hand.
-
-### Running on a remote server
-
-VK ties a user token to the IP address that authorised it. If the server runs
-on a VPS and you sign in from your own browser, the token works for about a
-minute and then every call fails with `error 5, subcode 1130` — which looks
-like a broken token but is not.
-
-`--login` supports `VK_LOGIN_REDIRECT` so the callback can come back through a
-public URL, but that does not change the binding. For a remote install, either
-run `--login` on the server itself (through a text browser or by forwarding a
-port), or use a community token, which is created in the community settings and
-is not tied to any browser session.
-
-### Community token (for posting to your own community)
-
-If all you want is to read and post in a community you manage, skip user
-tokens: open the community, then **Manage → API usage → Access tokens →
-Create token**, and tick `wall`, `photos` and `manage`. Community tokens do not
-expire and need no OAuth flow.
+📖 **[Full setup guide](docs/SETUP.md)** — every step with the exact screens,
+what the scopes unlock, remote installs, and what each error means.
 
 ## Configuration
 
