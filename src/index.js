@@ -51,6 +51,7 @@ class VKClient {
 
   // Users
   usersGet(params) { return this.call('users.get', params); }
+  usersSearch(params) { return this.call('users.search', params); }
 
   // Wall
   wallGet(params) { return this.call('wall.get', params); }
@@ -139,6 +140,25 @@ const tools = [
         user_ids: { type: 'string', description: 'Comma-separated user IDs or screen names' },
         fields: { type: 'string', description: 'Profile fields to return' },
       },
+    },
+  },
+  {
+    name: 'vk_users_search',
+    description: 'Search for VK users by name and other criteria',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Search query (name or keywords)' },
+        count: { type: 'number', description: 'Number of results (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+        fields: { type: 'string', description: 'Additional profile fields to return' },
+        city: { type: 'number', description: 'City ID to filter by' },
+        country: { type: 'number', description: 'Country ID to filter by' },
+        sex: { type: 'number', description: 'Sex filter: 1 — female, 2 — male', enum: [1, 2] },
+        age_from: { type: 'number', description: 'Minimum age' },
+        age_to: { type: 'number', description: 'Maximum age' },
+      },
+      required: ['q'],
     },
   },
   {
@@ -324,6 +344,20 @@ async function handleToolCall(name, args) {
         result = await vk.usersGet({
           user_ids: args.user_ids,
           fields: args.fields || 'photo_200,online,status',
+        });
+        break;
+
+      case 'vk_users_search':
+        result = await vk.usersSearch({
+          q: args.q,
+          count: args.count || 20,
+          offset: args.offset,
+          fields: args.fields || 'photo_200,online,status',
+          city: args.city,
+          country: args.country,
+          sex: args.sex,
+          age_from: args.age_from,
+          age_to: args.age_to,
         });
         break;
 
