@@ -12,13 +12,18 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { createRequire } from 'node:module';
+
+// Single source of truth for the version — announcing a hardcoded one drifts.
+const { version: VERSION } = createRequire(import.meta.url)('../package.json');
 
 // ============================================
 // VK CLIENT
 // ============================================
 
 const VK_API_VERSION = '5.199';
-const VK_API_BASE = 'https://api.vk.com/method';
+// Override for tests and for users behind API mirrors/proxies
+const VK_API_BASE = process.env.VK_API_BASE || 'https://api.vk.com/method';
 
 class VKClient {
   constructor(accessToken) {
@@ -618,7 +623,7 @@ async function handleToolCall(name, args) {
 // ============================================
 
 const server = new Server(
-  { name: 'vk-mcp-server', version: '0.1.0' },
+  { name: 'vk-mcp-server', version: VERSION },
   { capabilities: { tools: {} } }
 );
 
