@@ -64,6 +64,8 @@ class VKClient {
   // Groups
   groupsGet(params) { return this.call('groups.get', { ...params, extended: 1 }); }
   groupsGetById(params) { return this.call('groups.getById', params); }
+  groupsGetMembers(params) { return this.call('groups.getMembers', params); }
+  groupsSearch(params) { return this.call('groups.search', params); }
 
   // Friends
   friendsGet(params) { return this.call('friends.get', params); }
@@ -256,6 +258,41 @@ const tools = [
     },
   },
   {
+    name: 'vk_groups_search',
+    description: 'Search for VK communities by name and other criteria',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Search query' },
+        count: { type: 'number', description: 'Number of results (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+        fields: { type: 'string', description: 'Additional community fields to return' },
+        type: { type: 'string', description: 'Community type: group, page or event', enum: ['group', 'page', 'event'] },
+        country_id: { type: 'number', description: 'Country ID to filter by' },
+        city_id: { type: 'number', description: 'City ID to filter by' },
+        future: { type: 'number', description: 'Filter future events: 1 — only future events', enum: [0, 1] },
+        sort: { type: 'number', description: 'Sort order: 0 — default, 1 — by speed, 6 — by likes', enum: [0, 1, 6] },
+      },
+      required: ['q'],
+    },
+  },
+  {
+    name: 'vk_groups_get_members',
+    description: 'Get members (subscribers) of a VK community',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        group_id: { type: 'string', description: 'Community ID or short name' },
+        count: { type: 'number', description: 'Number of members to return (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+        fields: { type: 'string', description: 'Additional profile fields to return (e.g. photo_200,online,sex,city)' },
+        filter: { type: 'string', description: 'Filter: managers, editors, mods, advertisers, friends, unsure', enum: ['managers', 'editors', 'mods', 'advertisers', 'friends', 'unsure'] },
+        sort: { type: 'string', description: 'Sort order: id_asc, id_desc, time_asc, time_desc', enum: ['id_asc', 'id_desc', 'time_asc', 'time_desc'] },
+      },
+      required: ['group_id'],
+    },
+  },
+  {
     name: 'vk_groups_get',
     description: 'Get list of communities the user is a member of',
     inputSchema: {
@@ -432,6 +469,31 @@ async function handleToolCall(name, args) {
         };
         break;
       }
+
+      case 'vk_groups_search':
+        result = await vk.groupsSearch({
+          q: args.q,
+          count: args.count || 20,
+          offset: args.offset,
+          fields: args.fields,
+          type: args.type,
+          country_id: args.country_id,
+          city_id: args.city_id,
+          future: args.future,
+          sort: args.sort,
+        });
+        break;
+
+      case 'vk_groups_get_members':
+        result = await vk.groupsGetMembers({
+          group_id: args.group_id,
+          count: args.count || 1000,
+          offset: args.offset,
+          fields: args.fields,
+          filter: args.filter,
+          sort: args.sort || 'id_asc',
+        });
+        break;
 
       case 'vk_groups_get':
         result = await vk.groupsGet({
