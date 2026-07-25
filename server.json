@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.bulatko/vk",
-  "description": "MCP server for VK (VKontakte) API: users, walls, groups, friends, newsfeed, photos, likes.",
+  "description": "VK (VKontakte) social network — 19 tools: read and search walls, users, communities, members and reactions; community statistics; publish, edit, delete and comment on posts; upload photos. Reads are annotated so clients can auto-approve them, every tool declares an output schema, and list results say which offset continues the page.",
   "repository": {
     "url": "https://github.com/bulatko/vk-mcp-server.git",
     "source": "github"
@@ -18,7 +18,7 @@
       },
       "environmentVariables": [
         {
-          "description": "VK API access token, issued by your own Standalone app (create one at https://vk.com/editapp?act=create). See the README for the authorisation URL. A token is bound to the app that issued it, so use your own rather than a shared app ID.",
+          "description": "VK API access token. Quickest route if you manage a community: Manage -> API usage -> Access tokens -> Create token, ticking wall and photos — no app needed, and it is tied to neither a browser nor an IP. To act as yourself, create your own Standalone app at https://vk.com/editapp?act=create and run `npx vk-mcp-server --login <APP_ID>`. Use your own app rather than a shared ID: a token dies with the app that issued it. Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md",
           "isRequired": true,
           "isSecret": true,
           "name": "VK_ACCESS_TOKEN"
