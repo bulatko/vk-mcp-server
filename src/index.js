@@ -66,6 +66,7 @@ class VKClient {
   groupsGetById(params) { return this.call('groups.getById', params); }
   groupsGetMembers(params) { return this.call('groups.getMembers', params); }
   groupsSearch(params) { return this.call('groups.search', params); }
+  groupsJoin(params) { return this.call('groups.join', params); }
 
   // Friends
   friendsGet(params) { return this.call('friends.get', params); }
@@ -292,6 +293,18 @@ const tools = [
         fields: { type: 'string', description: 'Additional profile fields to return (e.g. photo_200,online,sex,city)' },
         filter: { type: 'string', description: 'Filter: managers, editors, mods, advertisers, friends, unsure', enum: ['managers', 'editors', 'mods', 'advertisers', 'friends', 'unsure'] },
         sort: { type: 'string', description: 'Sort order: id_asc, id_desc, time_asc, time_desc', enum: ['id_asc', 'id_desc', 'time_asc', 'time_desc'] },
+      },
+      required: ['group_id'],
+    },
+  },
+  {
+    name: 'vk_groups_join',
+    description: 'Join a VK community or submit a join request if the group is closed',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        group_id: { type: 'number', description: 'Community ID (positive number, without minus sign)' },
+        not_sure: { type: 'number', description: 'For events only: 1 — "maybe attending", 0 — confirmed', enum: [0, 1] },
       },
       required: ['group_id'],
     },
@@ -531,6 +544,13 @@ async function handleToolCall(name, args) {
           fields: args.fields,
           filter: args.filter,
           sort: args.sort || 'id_asc',
+        });
+        break;
+
+      case 'vk_groups_join':
+        result = await vk.groupsJoin({
+          group_id: args.group_id,
+          not_sure: args.not_sure,
         });
         break;
 
