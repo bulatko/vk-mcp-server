@@ -107,18 +107,52 @@ Add to your project's `.mcp.json`:
 
 ## Available Tools
 
+Tools marked ✏️ change something on VK — they post, edit, delete or join on
+behalf of whoever owns the access token.
+
+### Users
+
 | Tool | Description |
 |------|-------------|
 | `vk_users_get` | Get user profiles by IDs or screen names |
+| `vk_users_search` | Search users by name, city, age and other criteria |
+
+### Wall
+
+| Tool | Description |
+|------|-------------|
 | `vk_wall_get` | Get posts from user/community wall |
-| `vk_wall_post` | Publish a new post |
-| `vk_wall_create_comment` | Add comment to a post |
+| `vk_wall_get_by_id` | Get specific posts by `{owner_id}_{post_id}` |
+| `vk_wall_post` | ✏️ Publish a new post |
+| `vk_wall_edit` | ✏️ Edit an existing post |
+| `vk_wall_delete` | ✏️ Delete a post |
+| `vk_wall_create_comment` | ✏️ Add comment to a post |
+
+### Groups
+
+| Tool | Description |
+|------|-------------|
 | `vk_groups_get` | Get user's communities list |
 | `vk_groups_get_by_id` | Get community info by ID |
+| `vk_groups_search` | Search communities by name and criteria |
+| `vk_groups_get_members` | Get community members |
+| `vk_groups_join` | ✏️ Join a community or request to join |
+
+### Photos
+
+| Tool | Description |
+|------|-------------|
+| `vk_photos_get` | Get photos from albums |
+| `vk_photos_upload_wall` | ✏️ Upload a photo and get an attachment string for `vk_wall_post` |
+
+### Other
+
+| Tool | Description |
+|------|-------------|
 | `vk_friends_get` | Get user's friends list |
 | `vk_newsfeed_get` | Get user's newsfeed |
+| `vk_likes_get` | Get users who liked an object, with reaction counts |
 | `vk_stats_get` | Get community statistics (admin only) |
-| `vk_photos_get` | Get photos from albums |
 
 ## Usage Examples
 
