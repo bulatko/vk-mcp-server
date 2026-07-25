@@ -27,8 +27,9 @@ class VKClient {
   }
 
   async call(method, params = {}) {
+    const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
     const body = new URLSearchParams({
-      ...params,
+      ...clean,
       access_token: this.accessToken,
       v: this.apiVersion,
     });
