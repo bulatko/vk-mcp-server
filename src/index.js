@@ -51,6 +51,7 @@ class VKClient {
 
   // Users
   usersGet(params) { return this.call('users.get', params); }
+  usersSearch(params) { return this.call('users.search', params); }
 
   // Wall
   wallGet(params) { return this.call('wall.get', params); }
@@ -63,6 +64,8 @@ class VKClient {
   // Groups
   groupsGet(params) { return this.call('groups.get', { ...params, extended: 1 }); }
   groupsGetById(params) { return this.call('groups.getById', params); }
+  groupsGetMembers(params) { return this.call('groups.getMembers', params); }
+  groupsSearch(params) { return this.call('groups.search', params); }
   groupsJoin(params) { return this.call('groups.join', params); }
 
   // Friends
@@ -73,6 +76,10 @@ class VKClient {
 
   // Stats
   statsGet(params) { return this.call('stats.get', params); }
+
+  // Likes
+  likesGetList(params) { return this.call('likes.getList', params); }
+  likesIsLiked(params) { return this.call('likes.isLiked', params); }
 
   // Photos
   photosGet(params) { return this.call('photos.get', params); }
@@ -140,6 +147,25 @@ const tools = [
         user_ids: { type: 'string', description: 'Comma-separated user IDs or screen names' },
         fields: { type: 'string', description: 'Profile fields to return' },
       },
+    },
+  },
+  {
+    name: 'vk_users_search',
+    description: 'Search for VK users by name and other criteria',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Search query (name or keywords)' },
+        count: { type: 'number', description: 'Number of results (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+        fields: { type: 'string', description: 'Additional profile fields to return' },
+        city: { type: 'number', description: 'City ID to filter by' },
+        country: { type: 'number', description: 'Country ID to filter by' },
+        sex: { type: 'number', description: 'Sex filter: 1 — female, 2 — male', enum: [1, 2] },
+        age_from: { type: 'number', description: 'Minimum age' },
+        age_to: { type: 'number', description: 'Maximum age' },
+      },
+      required: ['q'],
     },
   },
   {
@@ -237,6 +263,41 @@ const tools = [
     },
   },
   {
+    name: 'vk_groups_search',
+    description: 'Search for VK communities by name and other criteria',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Search query' },
+        count: { type: 'number', description: 'Number of results (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+        fields: { type: 'string', description: 'Additional community fields to return' },
+        type: { type: 'string', description: 'Community type: group, page or event', enum: ['group', 'page', 'event'] },
+        country_id: { type: 'number', description: 'Country ID to filter by' },
+        city_id: { type: 'number', description: 'City ID to filter by' },
+        future: { type: 'number', description: 'Filter future events: 1 — only future events', enum: [0, 1] },
+        sort: { type: 'number', description: 'Sort order: 0 — default, 1 — by speed, 6 — by likes', enum: [0, 1, 6] },
+      },
+      required: ['q'],
+    },
+  },
+  {
+    name: 'vk_groups_get_members',
+    description: 'Get members (subscribers) of a VK community',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        group_id: { type: 'string', description: 'Community ID or short name' },
+        count: { type: 'number', description: 'Number of members to return (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+        fields: { type: 'string', description: 'Additional profile fields to return (e.g. photo_200,online,sex,city)' },
+        filter: { type: 'string', description: 'Filter: managers, editors, mods, advertisers, friends, unsure', enum: ['managers', 'editors', 'mods', 'advertisers', 'friends', 'unsure'] },
+        sort: { type: 'string', description: 'Sort order: id_asc, id_desc, time_asc, time_desc', enum: ['id_asc', 'id_desc', 'time_asc', 'time_desc'] },
+      },
+      required: ['group_id'],
+    },
+  },
+  {
     name: 'vk_groups_join',
     description: 'Join a VK community or submit a join request if the group is closed',
     inputSchema: {
@@ -311,6 +372,30 @@ const tools = [
     },
   },
   {
+    name: 'vk_likes_get',
+    description: 'Get list of users who liked a VK object and reaction counts. Also returns available reaction types for the object.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          description: 'Object type',
+          enum: ['post', 'comment', 'photo', 'audio', 'video', 'note', 'photo_comment', 'video_comment', 'topic_comment', 'sitepage'],
+        },
+        owner_id: { type: 'number', description: 'Owner ID of the object (negative for community)' },
+        item_id: { type: 'number', description: 'Object ID' },
+        reaction_id: {
+          type: 'number',
+          description: 'Filter by reaction: 0 — like ❤️, 1 — laugh 😂, 2 — wow 😮, 3 — admiration 🔥, 4 — angry 😡, 5 — sad 😢',
+          enum: [0, 1, 2, 3, 4, 5],
+        },
+        count: { type: 'number', description: 'Number of users to return (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+      },
+      required: ['type', 'item_id'],
+    },
+  },
+  {
     name: 'vk_photos_get',
     description: 'Get photos from albums',
     inputSchema: {
@@ -337,6 +422,20 @@ async function handleToolCall(name, args) {
         result = await vk.usersGet({
           user_ids: args.user_ids,
           fields: args.fields || 'photo_200,online,status',
+        });
+        break;
+
+      case 'vk_users_search':
+        result = await vk.usersSearch({
+          q: args.q,
+          count: args.count || 20,
+          offset: args.offset,
+          fields: args.fields || 'photo_200,online,status',
+          city: args.city,
+          country: args.country,
+          sex: args.sex,
+          age_from: args.age_from,
+          age_to: args.age_to,
         });
         break;
 
@@ -392,6 +491,17 @@ async function handleToolCall(name, args) {
         });
         break;
 
+      case 'vk_likes_get':
+        result = await vk.likesGetList({
+          type: args.type,
+          owner_id: args.owner_id,
+          item_id: args.item_id,
+          reaction_id: args.reaction_id,
+          count: args.count || 100,
+          offset: args.offset,
+        });
+        break;
+
       case 'vk_photos_upload_wall': {
         const uploadServer = await vk.photosGetWallUploadServer({
           group_id: args.group_id,
@@ -411,6 +521,31 @@ async function handleToolCall(name, args) {
         };
         break;
       }
+
+      case 'vk_groups_search':
+        result = await vk.groupsSearch({
+          q: args.q,
+          count: args.count || 20,
+          offset: args.offset,
+          fields: args.fields,
+          type: args.type,
+          country_id: args.country_id,
+          city_id: args.city_id,
+          future: args.future,
+          sort: args.sort,
+        });
+        break;
+
+      case 'vk_groups_get_members':
+        result = await vk.groupsGetMembers({
+          group_id: args.group_id,
+          count: args.count || 1000,
+          offset: args.offset,
+          fields: args.fields,
+          filter: args.filter,
+          sort: args.sort || 'id_asc',
+        });
+        break;
 
       case 'vk_groups_join':
         result = await vk.groupsJoin({
