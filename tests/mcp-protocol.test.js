@@ -124,6 +124,37 @@ describe('tools/list', () => {
     expect(required.vk_likes_get).toEqual(expect.arrayContaining(['type', 'item_id']));
   });
 
+  it('annotates every tool so clients can tell reads from writes', () => {
+    tools.forEach((t) => {
+      expect(t.annotations).toBeDefined();
+      expect(typeof t.annotations.readOnlyHint).toBe('boolean');
+      expect(t.annotations.openWorldHint).toBe(true);
+    });
+  });
+
+  it('marks the tools that write to VK', () => {
+    const byName = Object.fromEntries(tools.map((t) => [t.name, t.annotations]));
+    ['vk_wall_post', 'vk_wall_edit', 'vk_wall_delete', 'vk_wall_create_comment',
+      'vk_photos_upload_wall', 'vk_groups_join'].forEach((name) => {
+      expect(byName[name].readOnlyHint).toBe(false);
+    });
+
+    // Editing and deleting overwrite what is already there.
+    expect(byName.vk_wall_edit.destructiveHint).toBe(true);
+    expect(byName.vk_wall_delete.destructiveHint).toBe(true);
+    // Publishing adds something new rather than replacing it.
+    expect(byName.vk_wall_post.destructiveHint).toBe(false);
+  });
+
+  it('treats lookups as read-only', () => {
+    const byName = Object.fromEntries(tools.map((t) => [t.name, t.annotations]));
+    ['vk_users_get', 'vk_wall_get', 'vk_groups_get_members', 'vk_likes_get',
+      'vk_stats_get', 'vk_newsfeed_get'].forEach((name) => {
+      expect(byName[name].readOnlyHint).toBe(true);
+      expect(byName[name].destructiveHint).toBe(false);
+    });
+  });
+
   it('has no duplicate tool names', () => {
     const names = tools.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);

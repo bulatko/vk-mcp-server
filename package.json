@@ -28,7 +28,7 @@
   "author": "bulatko",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1"
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "jest": "^29.7.0"

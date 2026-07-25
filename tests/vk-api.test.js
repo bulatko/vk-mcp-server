@@ -20,8 +20,12 @@ let client;
 let transport;
 /** Requests the server made to the fake VK API. */
 let received = [];
-/** Response the fake VK API returns next. */
+/** Response the fake VK API returns next: an object, or a function per call. */
 let nextResponse = { response: { ok: true } };
+/** HTTP status the fake VK API answers with. */
+let httpStatus = 200;
+/** Raw body override, for non-JSON responses. */
+let rawBody = null;
 
 const call = async (name, args) => {
   const res = await client.callTool({ name, arguments: args });
@@ -37,8 +41,15 @@ beforeAll(async () => {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       received.push({ method: req.url.replace(/^\/+/, ''), body });
+      res.statusCode = httpStatus;
+      if (rawBody !== null) {
+        res.setHeader('content-type', 'text/html');
+        res.end(rawBody);
+        return;
+      }
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(nextResponse));
+      const payload = typeof nextResponse === 'function' ? nextResponse() : nextResponse;
+      res.end(JSON.stringify(payload));
     });
   });
   await new Promise((r) => http.listen(0, '127.0.0.1', r));
@@ -64,6 +75,8 @@ afterAll(async () => {
 beforeEach(() => {
   received = [];
   nextResponse = { response: { ok: true } };
+  httpStatus = 200;
+  rawBody = null;
 });
 
 describe('request shape', () => {
@@ -193,6 +206,46 @@ describe('VK error handling', () => {
     nextResponse = { response: [{ id: 1, first_name: 'Test' }] };
     const result = await call('vk_users_get', { user_ids: '1' });
     expect(result[0].first_name).toBe('Test');
+  });
+});
+
+describe('rate limits and transport failures', () => {
+  it('retries when VK reports too many requests, then succeeds', async () => {
+    // Error 6 is routine: VK allows only a few calls per second.
+    const responses = [
+      { error: { error_code: 6, error_msg: 'Too many requests per second.' } },
+      { error: { error_code: 6, error_msg: 'Too many requests per second.' } },
+      { response: [{ id: 1, first_name: 'Test' }] },
+    ];
+    let i = 0;
+    nextResponse = () => responses[Math.min(i++, responses.length - 1)];
+
+    const result = await call('vk_users_get', { user_ids: '1' });
+    expect(result[0].first_name).toBe('Test');
+    expect(received).toHaveLength(3);
+  }, 15000);
+
+  it('gives up after the retry budget and reports the rate limit', async () => {
+    nextResponse = () => ({ error: { error_code: 6, error_msg: 'Too many requests per second.' } });
+    const result = await call('vk_users_get', { user_ids: '1' });
+    expect(result.error).toMatch(/6/);
+    expect(received.length).toBeGreaterThan(1);
+  }, 20000);
+
+  it('explains a captcha instead of retrying it', async () => {
+    nextResponse = { error: { error_code: 14, error_msg: 'Captcha needed.' } };
+    const result = await call('vk_users_get', { user_ids: '1' });
+    expect(result.error).toMatch(/captcha/i);
+    // Retrying a captcha just burns the rate limit.
+    expect(received).toHaveLength(1);
+  });
+
+  it('reports an HTTP failure rather than a JSON parse error', async () => {
+    httpStatus = 502;
+    rawBody = '<html>Bad Gateway</html>';
+    const result = await call('vk_users_get', { user_ids: '1' });
+    expect(result.error).toMatch(/502/);
+    expect(result.error).not.toMatch(/JSON|Unexpected token/i);
   });
 });
 

@@ -105,10 +105,24 @@ Add to your project's `.mcp.json`:
 }
 ```
 
+### Environment variables
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `VK_ACCESS_TOKEN` | yes | — | VK API access token |
+| `VK_TIMEOUT_MS` | no | `30000` | Abort a VK request that hangs longer than this |
+| `VK_API_BASE` | no | `https://api.vk.com/method` | Point the server at an API mirror or proxy |
+
+VK rate-limits user tokens to a few calls per second. When it answers with
+error 6 (*too many requests*), the server backs off and retries up to three
+times before giving up, so short bursts of tool calls do not fail outright.
+
 ## Available Tools
 
 Tools marked ✏️ change something on VK — they post, edit, delete or join on
-behalf of whoever owns the access token.
+behalf of whoever owns the access token. Each tool also carries MCP annotations
+(`readOnlyHint`, `destructiveHint`), so a client can auto-approve lookups while
+still asking before a post is edited or deleted.
 
 ### Users
 

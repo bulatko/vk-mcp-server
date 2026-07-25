@@ -25,13 +25,23 @@ const VK_API_VERSION = '5.199';
 // Override for tests and for users behind API mirrors/proxies
 const VK_API_BASE = process.env.VK_API_BASE || 'https://api.vk.com/method';
 
+const REQUEST_TIMEOUT_MS = Number(process.env.VK_TIMEOUT_MS) || 30000;
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 500;
+
+// https://dev.vk.com/reference/errors
+const VK_ERROR_RATE_LIMIT = 6;
+const VK_ERROR_CAPTCHA = 14;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 class VKClient {
   constructor(accessToken) {
     this.accessToken = accessToken;
     this.apiVersion = VK_API_VERSION;
   }
 
-  async call(method, params = {}) {
+  async call(method, params = {}, attempt = 0) {
     const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
     const body = new URLSearchParams({
       ...clean,
@@ -39,16 +49,46 @@ class VKClient {
       v: this.apiVersion,
     });
 
-    const response = await fetch(`${VK_API_BASE}/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
+    let response;
+    try {
+      response = await fetch(`${VK_API_BASE}/${method}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        throw new Error(`VK API request timed out after ${REQUEST_TIMEOUT_MS}ms: ${method}`);
+      }
+      throw err;
+    }
+
+    if (!response.ok) {
+      throw new Error(`VK API HTTP ${response.status} ${response.statusText} for ${method}`);
+    }
 
     const data = await response.json();
 
     if (data.error) {
-      throw new Error(`VK API Error ${data.error.error_code}: ${data.error.error_msg}`);
+      const { error_code: code, error_msg: msg } = data.error;
+
+      // 6 = too many requests per second. VK's limit is low (a few calls per
+      // second), so a burst of tool calls hits it routinely; back off and retry
+      // rather than surfacing a failure the caller can do nothing about.
+      if (code === VK_ERROR_RATE_LIMIT && attempt < MAX_RETRIES) {
+        await sleep(RETRY_BASE_MS * 2 ** attempt);
+        return this.call(method, params, attempt + 1);
+      }
+
+      if (code === VK_ERROR_CAPTCHA) {
+        throw new Error(
+          `VK API Error ${code}: ${msg}. VK is asking for a captcha, which this ` +
+            'server cannot solve. Retry later, or slow down the request rate.'
+        );
+      }
+
+      throw new Error(`VK API Error ${code}: ${msg}`);
     }
 
     return data.response;
@@ -84,7 +124,6 @@ class VKClient {
 
   // Likes
   likesGetList(params) { return this.call('likes.getList', params); }
-  likesIsLiked(params) { return this.call('likes.isLiked', params); }
 
   // Photos
   photosGet(params) { return this.call('photos.get', params); }
@@ -414,6 +453,30 @@ const tools = [
   },
 ];
 
+// Tools that change something on VK, and whether the change destroys or
+// overwrites existing data. Everything not listed here is read-only.
+const WRITING_TOOLS = {
+  vk_wall_post: { destructive: false },
+  vk_wall_edit: { destructive: true },
+  vk_wall_delete: { destructive: true },
+  vk_wall_create_comment: { destructive: false },
+  vk_photos_upload_wall: { destructive: false },
+  vk_groups_join: { destructive: false, idempotent: true },
+};
+
+// MCP annotations let a client tell reads from writes — so it can auto-approve
+// a wall lookup while still asking before deleting a post. Derived from one
+// table instead of repeated per tool, so a new tool is read-only by default.
+for (const tool of tools) {
+  const write = WRITING_TOOLS[tool.name];
+  tool.annotations = {
+    readOnlyHint: !write,
+    destructiveHint: write ? write.destructive : false,
+    idempotentHint: write ? Boolean(write.idempotent) : true,
+    openWorldHint: true, // every tool calls the VK API
+  };
+}
+
 // ============================================
 // TOOL HANDLERS
 // ============================================
@@ -544,7 +607,7 @@ async function handleToolCall(name, args) {
       case 'vk_groups_get_members':
         result = await vk.groupsGetMembers({
           group_id: args.group_id,
-          count: args.count ?? 1000,
+          count: args.count ?? 100,
           offset: args.offset,
           fields: args.fields,
           filter: args.filter,
