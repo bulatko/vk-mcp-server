@@ -63,6 +63,11 @@ describe('tools/list', () => {
   it('exposes every documented tool', () => {
     const expected = [
       'vk_users_get',
+      'vk_users_search',
+      'vk_groups_search',
+      'vk_groups_get_members',
+      'vk_groups_join',
+      'vk_likes_get',
       'vk_wall_get',
       'vk_wall_post',
       'vk_wall_create_comment',
@@ -112,6 +117,11 @@ describe('tools/list', () => {
     expect(required.vk_wall_get_by_id).toContain('posts');
     expect(required.vk_stats_get).toContain('group_id');
     expect(required.vk_photos_upload_wall).toContain('image');
+    expect(required.vk_users_search).toContain('q');
+    expect(required.vk_groups_search).toContain('q');
+    expect(required.vk_groups_get_members).toContain('group_id');
+    expect(required.vk_groups_join).toContain('group_id');
+    expect(required.vk_likes_get).toEqual(expect.arrayContaining(['type', 'item_id']));
   });
 
   it('has no duplicate tool names', () => {

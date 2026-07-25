@@ -426,16 +426,16 @@ async function handleToolCall(name, args) {
       case 'vk_users_get':
         result = await vk.usersGet({
           user_ids: args.user_ids,
-          fields: args.fields || 'photo_200,online,status',
+          fields: args.fields ?? 'photo_200,online,status',
         });
         break;
 
       case 'vk_users_search':
         result = await vk.usersSearch({
           q: args.q,
-          count: args.count || 20,
+          count: args.count ?? 20,
           offset: args.offset,
-          fields: args.fields || 'photo_200,online,status',
+          fields: args.fields ?? 'photo_200,online,status',
           city: args.city,
           country: args.country,
           sex: args.sex,
@@ -448,7 +448,7 @@ async function handleToolCall(name, args) {
         result = await vk.wallGet({
           owner_id: args.owner_id,
           domain: args.domain,
-          count: args.count || 20,
+          count: args.count ?? 20,
           offset: args.offset,
           filter: args.filter,
         });
@@ -502,7 +502,7 @@ async function handleToolCall(name, args) {
           owner_id: args.owner_id,
           item_id: args.item_id,
           reaction_id: args.reaction_id,
-          count: args.count || 100,
+          count: args.count ?? 100,
           offset: args.offset,
         });
         break;
@@ -530,7 +530,7 @@ async function handleToolCall(name, args) {
       case 'vk_groups_search':
         result = await vk.groupsSearch({
           q: args.q,
-          count: args.count || 20,
+          count: args.count ?? 20,
           offset: args.offset,
           fields: args.fields,
           type: args.type,
@@ -544,11 +544,11 @@ async function handleToolCall(name, args) {
       case 'vk_groups_get_members':
         result = await vk.groupsGetMembers({
           group_id: args.group_id,
-          count: args.count || 1000,
+          count: args.count ?? 1000,
           offset: args.offset,
           fields: args.fields,
           filter: args.filter,
-          sort: args.sort || 'id_asc',
+          sort: args.sort ?? 'id_asc',
         });
         break;
 
@@ -563,15 +563,15 @@ async function handleToolCall(name, args) {
         result = await vk.groupsGet({
           user_id: args.user_id,
           filter: args.filter,
-          fields: args.fields || 'description,members_count',
-          count: args.count || 100,
+          fields: args.fields ?? 'description,members_count',
+          count: args.count ?? 100,
         });
         break;
 
       case 'vk_groups_get_by_id':
         result = await vk.groupsGetById({
           group_ids: args.group_ids,
-          fields: args.fields || 'description,members_count',
+          fields: args.fields ?? 'description,members_count',
         });
         break;
 
@@ -579,15 +579,15 @@ async function handleToolCall(name, args) {
         result = await vk.friendsGet({
           user_id: args.user_id,
           order: args.order,
-          fields: args.fields || 'photo_200,online',
-          count: args.count || 100,
+          fields: args.fields ?? 'photo_200,online',
+          count: args.count ?? 100,
         });
         break;
 
       case 'vk_newsfeed_get':
         result = await vk.newsfeedGet({
-          filters: args.filters || 'post',
-          count: args.count || 20,
+          filters: args.filters ?? 'post',
+          count: args.count ?? 20,
           start_from: args.start_from,
         });
         break;
@@ -595,16 +595,16 @@ async function handleToolCall(name, args) {
       case 'vk_stats_get':
         result = await vk.statsGet({
           group_id: args.group_id,
-          interval: args.interval || 'day',
-          intervals_count: args.intervals_count || 7,
+          interval: args.interval ?? 'day',
+          intervals_count: args.intervals_count ?? 7,
         });
         break;
 
       case 'vk_photos_get':
         result = await vk.photosGet({
           owner_id: args.owner_id,
-          album_id: args.album_id || 'wall',
-          count: args.count || 50,
+          album_id: args.album_id ?? 'wall',
+          count: args.count ?? 50,
         });
         break;
 

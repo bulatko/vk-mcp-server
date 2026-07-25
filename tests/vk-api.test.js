@@ -99,6 +99,10 @@ describe('request shape', () => {
       ['vk_stats_get', { group_id: 1 }, 'stats.get'],
       ['vk_photos_get', { owner_id: 1 }, 'photos.get'],
       ['vk_wall_get_by_id', { posts: '-1_2' }, 'wall.getById'],
+      ['vk_users_search', { q: 'ivan' }, 'users.search'],
+      ['vk_groups_search', { q: 'music' }, 'groups.search'],
+      ['vk_groups_get_members', { group_id: '1' }, 'groups.getMembers'],
+      ['vk_likes_get', { type: 'post', item_id: 1 }, 'likes.getList'],
     ];
     for (const [tool, args, method] of cases) {
       received = [];
@@ -113,6 +117,7 @@ describe('request shape', () => {
       ['vk_wall_edit', { post_id: 1, message: 'edited' }, 'wall.edit'],
       ['vk_wall_delete', { post_id: 1 }, 'wall.delete'],
       ['vk_wall_create_comment', { owner_id: 1, post_id: 2, message: 'yo' }, 'wall.createComment'],
+      ['vk_groups_join', { group_id: 1 }, 'groups.join'],
     ];
     for (const [tool, args, method] of cases) {
       received = [];
@@ -122,14 +127,34 @@ describe('request shape', () => {
   });
 });
 
+describe('coverage', () => {
+  // A tool can be advertised in tools/list but missing from the handler switch,
+  // in which case it answers "Unknown tool" at runtime. Walk the whole list.
+  it('implements every tool it advertises', async () => {
+    const { tools } = await client.listTools();
+    const dummy = { string: 'x', number: 1, boolean: false };
+
+    for (const tool of tools) {
+      const args = Object.fromEntries(
+        (tool.inputSchema.required || []).map((field) => {
+          const spec = tool.inputSchema.properties[field];
+          // Respect enums — VK rejects out-of-range values and so do we.
+          const value = spec.enum ? spec.enum[0] : dummy[spec.type];
+          return [field, value];
+        })
+      );
+
+      const res = await client.callTool({ name: tool.name, arguments: args });
+      expect(res.content[0].text).not.toMatch(/Unknown tool/i);
+    }
+  }, 30000);
+});
+
 describe('optional parameters', () => {
-  // KNOWN BUG — unskip when PR #4 lands.
-  // URLSearchParams stringifies undefined/null, so omitted arguments reach VK
-  // as the literal text "undefined" (e.g. owner_id=undefined). Verified live:
-  //   owner_id=undefined&domain=durov&count=20&offset=undefined&filter=undefined
-  // The fix belongs in VKClient.call(), which is exactly what PR #4 does; we
-  // keep it skipped rather than patch it here so that PR merges without conflict.
-  it.skip('omits arguments the caller did not provide', async () => {
+  // Regression guard for #4: URLSearchParams stringifies undefined/null, so
+  // omitted arguments used to reach VK as the literal text "undefined" —
+  // e.g. owner_id=undefined&domain=durov&count=20&offset=undefined.
+  it('omits arguments the caller did not provide', async () => {
     await call('vk_wall_get', { domain: 'durov' });
     const body = received.at(-1).body;
     expect(body).not.toContain('undefined');
@@ -137,11 +162,9 @@ describe('optional parameters', () => {
     expect(lastParams()).not.toHaveProperty('owner_id');
   });
 
-  // KNOWN BUG — unskip once the handler defaults move from `||` to `??`.
-  // Handlers use `args.count || 20`, so an explicit 0 is silently replaced by
-  // the default. Same pattern in intervals_count, offset and friends. Deferred
-  // because the fix edits the same handler lines that PRs #5–#9 extend.
-  it.skip('keeps falsy-but-meaningful values', async () => {
+  // Handlers used `args.count || 20`, which silently replaced an explicit 0
+  // with the default. Nullish coalescing keeps the caller's value.
+  it('keeps falsy-but-meaningful values', async () => {
     await call('vk_wall_get', { owner_id: 0, count: 0 });
     const params = lastParams();
     expect(params.owner_id).toBe('0');
