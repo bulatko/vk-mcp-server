@@ -93,8 +93,29 @@ describe('tools/list', () => {
   it('gives every tool a description and an object schema', () => {
     tools.forEach((t) => {
       expect(typeof t.description).toBe('string');
-      expect(t.description.length).toBeGreaterThan(10);
+      // A one-liner tells the model what the tool is called, not when to reach
+      // for it or what it will get back.
+      expect(t.description.length).toBeGreaterThan(60);
       expect(t.inputSchema.type).toBe('object');
+    });
+  });
+
+  it('gives every tool a readable title', () => {
+    // Without one, clients show the raw name — "vk_wall_get_by_id".
+    tools.forEach((t) => {
+      expect(t.title || t.annotations?.title).toBeTruthy();
+    });
+  });
+
+  it('explains the sign convention wherever an owner id is accepted', () => {
+    // Community IDs are negative in wall context and positive in group context.
+    // Getting it wrong is the most common VK mistake, and it fails confusingly.
+    tools.forEach((t) => {
+      const owner = t.inputSchema.properties?.owner_id;
+      if (owner) expect(owner.description).toMatch(/negative|positive/i);
+
+      const group = t.inputSchema.properties?.group_id;
+      if (group) expect(group.description).toMatch(/positive|without the minus/i);
     });
   });
 

@@ -250,6 +250,7 @@ community, and the model knows which tools to use.
 | `community_digest` | Reads recent posts and summarises themes, standouts and cadence |
 | `engagement_report` | Ranks posts by likes and by comments, then explains what the winners share |
 | `audience_snapshot` | Samples members and describes the audience by sex, city and activity |
+| `publish_post` | Drafts a post in the community's own tone, shows it for approval, publishes it |
 | `find_communities` | Searches communities on a topic and compares the candidates |
 
 ## Usage Examples

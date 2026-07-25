@@ -269,7 +269,8 @@ const vk = new VKClient(VK_ACCESS_TOKEN);
 const tools = [
   {
     name: 'vk_users_get',
-    description: 'Get information about VK users by their IDs or screen names',
+    title: 'Get user profiles',
+    description: 'Look up VK users by numeric ID or short name (e.g. durov). Use this to resolve a name to an ID before calling other tools, or to check whether a profile is closed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -280,7 +281,8 @@ const tools = [
   },
   {
     name: 'vk_users_search',
-    description: 'Search for VK users by name and other criteria',
+    title: 'Search users',
+    description: 'Find VK users by name, optionally narrowed by city, country, sex or age. Returns matches with a total count; page through them with offset.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -299,7 +301,8 @@ const tools = [
   },
   {
     name: 'vk_wall_get',
-    description: 'Get posts from a user or community wall',
+    title: 'Read a wall',
+    description: 'Read posts from a user or community wall, newest first. Pass domain for a short address (durov) or owner_id for a numeric one — negative for a community, positive for a person. Each post carries its likes, reposts, comments and views.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -313,11 +316,12 @@ const tools = [
   },
   {
     name: 'vk_wall_post',
-    description: 'Publish a new post on a wall',
+    title: 'Publish a post',
+    description: 'Publish a post on a wall. To post in a community, set owner_id to the community ID with a minus sign (-123) and from_group true, otherwise it appears as your personal post on the community wall. Attach media with the attachment string that vk_photos_upload_wall returns. Returns the new post_id.',
     inputSchema: {
       type: 'object',
       properties: {
-        owner_id: { type: 'number', description: 'Wall owner ID' },
+        owner_id: { type: 'number', description: 'Wall owner: a community as a negative number (-123), a person as a positive one. Defaults to the token owner.' },
         message: { type: 'string', description: 'Post text content' },
         from_group: { type: 'boolean', description: 'Post on behalf of community' },
         attachments: { type: 'string', description: 'Comma-separated attachments (e.g. photo123_456,link)' },
@@ -329,11 +333,12 @@ const tools = [
   },
   {
     name: 'vk_wall_create_comment',
-    description: 'Add a comment to a wall post',
+    title: 'Comment on a post',
+    description: 'Add a comment to a post. owner_id is negative for a community. Returns the new comment_id.',
     inputSchema: {
       type: 'object',
       properties: {
-        owner_id: { type: 'number', description: 'Wall owner ID' },
+        owner_id: { type: 'number', description: 'Wall owner: a community as a negative number (-123), a person as a positive one. Defaults to the token owner.' },
         post_id: { type: 'number', description: 'Post ID' },
         message: { type: 'string', description: 'Comment text' },
       },
@@ -342,7 +347,8 @@ const tools = [
   },
   {
     name: 'vk_wall_get_by_id',
-    description: 'Get posts by their IDs',
+    title: 'Get specific posts',
+    description: 'Fetch particular posts by their full IDs in {owner_id}_{post_id} form, e.g. -1_340393. Use it to re-read a post you already know about, such as one you just published.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -354,11 +360,12 @@ const tools = [
   },
   {
     name: 'vk_wall_edit',
-    description: 'Edit an existing wall post',
+    title: 'Edit a post',
+    description: 'Replace the text or attachments of an existing post. owner_id is negative for a community. Editing overwrites the previous content, so pass the full new text rather than an addition.',
     inputSchema: {
       type: 'object',
       properties: {
-        owner_id: { type: 'number', description: 'Wall owner ID' },
+        owner_id: { type: 'number', description: 'Wall owner: a community as a negative number (-123), a person as a positive one. Defaults to the token owner.' },
         post_id: { type: 'number', description: 'Post ID to edit' },
         message: { type: 'string', description: 'New post text' },
         attachments: { type: 'string', description: 'Comma-separated attachments' },
@@ -368,11 +375,12 @@ const tools = [
   },
   {
     name: 'vk_wall_delete',
-    description: 'Delete a wall post',
+    title: 'Delete a post',
+    description: 'Delete a post from a wall. owner_id is negative for a community. This cannot be undone.',
     inputSchema: {
       type: 'object',
       properties: {
-        owner_id: { type: 'number', description: 'Wall owner ID' },
+        owner_id: { type: 'number', description: 'Wall owner: a community as a negative number (-123), a person as a positive one. Defaults to the token owner.' },
         post_id: { type: 'number', description: 'Post ID to delete' },
       },
       required: ['post_id'],
@@ -380,7 +388,8 @@ const tools = [
   },
   {
     name: 'vk_photos_upload_wall',
-    description: 'Upload a photo to a community or user wall (3-step process: get upload server, upload file, save). Returns attachment string for use in wall.post/wall.edit.',
+    title: 'Upload a photo for a post',
+    description: 'Upload a photo so it can be attached to a post. Takes a URL or a local file path, runs VK\'s three-step upload, and returns an attachment string like photo-1_2 to pass to vk_wall_post or vk_wall_edit. group_id is positive here, without the minus sign.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -393,7 +402,8 @@ const tools = [
   },
   {
     name: 'vk_groups_search',
-    description: 'Search for VK communities by name and other criteria',
+    title: 'Search communities',
+    description: 'Find communities by keyword, optionally narrowed by type, country, city or sort order. Returns matches with a total count.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -412,11 +422,12 @@ const tools = [
   },
   {
     name: 'vk_groups_get_members',
-    description: 'Get members (subscribers) of a VK community',
+    title: 'List community members',
+    description: 'List the members of a community. Returns bare user IDs unless you ask for fields, in which case it returns profiles. Many communities hide their member list, which comes back as an access error rather than an empty list.',
     inputSchema: {
       type: 'object',
       properties: {
-        group_id: { type: 'string', description: 'Community ID or short name' },
+        group_id: { type: 'string', description: 'Community ID (positive, no minus sign) or its short name, e.g. apiclub.' },
         count: { type: 'number', description: 'Number of members to return (max 1000)' },
         offset: { type: 'number', description: 'Offset for pagination' },
         fields: { type: 'string', description: 'Additional profile fields to return (e.g. photo_200,online,sex,city)' },
@@ -428,7 +439,8 @@ const tools = [
   },
   {
     name: 'vk_groups_join',
-    description: 'Join a VK community or submit a join request if the group is closed',
+    title: 'Join a community',
+    description: 'Join a community as the token owner, or send a join request if it is closed. group_id is positive here, without the minus sign.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -440,11 +452,12 @@ const tools = [
   },
   {
     name: 'vk_groups_get',
-    description: 'Get list of communities the user is a member of',
+    title: 'List your communities',
+    description: 'List the communities the token owner belongs to. Needs a user token — a community or service token cannot answer this.',
     inputSchema: {
       type: 'object',
       properties: {
-        user_id: { type: 'number', description: 'User ID' },
+        user_id: { type: 'number', description: 'User ID. Defaults to the token owner.' },
         filter: { type: 'string', description: 'Filter by type' },
         fields: { type: 'string', description: 'Community fields' },
         count: { type: 'number', description: 'Number of communities' },
@@ -453,7 +466,8 @@ const tools = [
   },
   {
     name: 'vk_groups_get_by_id',
-    description: 'Get community info by ID or short name',
+    title: 'Get community info',
+    description: 'Look up communities by numeric ID or short name (e.g. apiclub). Use it to resolve a name to an ID, or to read the description, member count and type before deciding what to do with it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -464,11 +478,12 @@ const tools = [
   },
   {
     name: 'vk_friends_get',
-    description: 'Get list of user friends',
+    title: 'List friends',
+    description: 'List a user\'s friends. Returns bare IDs unless you ask for fields. Needs a user token, and only works for profiles that expose their friend list.',
     inputSchema: {
       type: 'object',
       properties: {
-        user_id: { type: 'number', description: 'User ID' },
+        user_id: { type: 'number', description: 'User ID. Defaults to the token owner.' },
         order: { type: 'string', enum: ['hints', 'random', 'name'] },
         fields: { type: 'string', description: 'Profile fields' },
         count: { type: 'number', description: 'Number of friends' },
@@ -477,7 +492,8 @@ const tools = [
   },
   {
     name: 'vk_newsfeed_get',
-    description: 'Get user newsfeed',
+    title: 'Read your newsfeed',
+    description: 'Read the token owner\'s own newsfeed. Needs a user token — this is the feed of the account the token belongs to, not a public one.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -489,11 +505,12 @@ const tools = [
   },
   {
     name: 'vk_stats_get',
-    description: 'Get community statistics (admin only)',
+    title: 'Community statistics',
+    description: 'Read a community\'s statistics by period: reach, visitors and activity. The token owner must be an administrator of that community, otherwise VK denies access.',
     inputSchema: {
       type: 'object',
       properties: {
-        group_id: { type: 'number', description: 'Community ID' },
+        group_id: { type: 'number', description: 'Community ID, positive and without the minus sign.' },
         interval: { type: 'string', enum: ['day', 'week', 'month', 'year', 'all'] },
         intervals_count: { type: 'number', description: 'Number of intervals' },
       },
@@ -502,7 +519,8 @@ const tools = [
   },
   {
     name: 'vk_likes_get',
-    description: 'Get list of users who liked a VK object and reaction counts. Also returns available reaction types for the object.',
+    title: 'See who reacted',
+    description: 'List the users who liked or reacted to an object — a post, comment, photo or video — with counts per reaction. owner_id is negative for a community; item_id is the post or object ID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -526,11 +544,12 @@ const tools = [
   },
   {
     name: 'vk_photos_get',
-    description: 'Get photos from albums',
+    title: 'Get photos',
+    description: 'List photos from an album. album_id accepts wall, profile or saved as well as a numeric album ID. owner_id is negative for a community.',
     inputSchema: {
       type: 'object',
       properties: {
-        owner_id: { type: 'number', description: 'Album owner ID' },
+        owner_id: { type: 'number', description: 'Album owner: negative for a community, positive for a person.' },
         album_id: { type: 'string', description: 'Album ID or: wall, profile, saved' },
         count: { type: 'number', description: 'Number of photos' },
       },
@@ -952,6 +971,30 @@ const prompts = [
       'present, and how many look active from last_seen. ' +
       `State explicitly that this is a sample of ${sample}, not the whole audience, and note ` +
       'that VK hides some fields, so percentages are of the members who exposed that field.',
+  },
+  {
+    name: 'publish_post',
+    title: 'Publish a post to a community',
+    description: 'Draft a post, show it for approval, and publish it once you say so.',
+    arguments: [
+      { name: 'community', description: 'Community short address or numeric ID', required: true },
+      { name: 'about', description: 'What the post should say', required: true },
+      { name: 'image', description: 'Optional image URL or local file path', required: false },
+    ],
+    build: ({ community, about, image }) =>
+      `Write and publish a VK post for the community "${community}" about: ${about}\n\n` +
+      `First use vk_groups_get_by_id with group_ids="${community}" to get its numeric ID, and ` +
+      'read the last few posts with vk_wall_get so the new one matches the tone and length ' +
+      'that community actually uses.\n\n' +
+      (image
+        ? `Upload the image with vk_photos_upload_wall (group_id = the positive community ID, image="${image}") ` +
+          'and keep the attachment string it returns.\n\n'
+        : '') +
+      'Then show me the draft and wait for my approval — do not publish first and ask after. ' +
+      'Once I approve, publish with vk_wall_post using owner_id = minus the community ID ' +
+      '(a community is negative there) and from_group=true, so it appears as the community' +
+      (image ? ', and attachments = the string from the upload step' : '') +
+      '. Finish by giving me the link: https://vk.com/wall{owner_id}_{post_id}.',
   },
   {
     name: 'find_communities',
