@@ -276,6 +276,10 @@ Here are the latest posts from Pavel Durov's wall:
 2. [Post content...]
 ```
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## Testing
 
 Run the test suite:
