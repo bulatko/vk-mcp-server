@@ -86,6 +86,11 @@ io.github.bulatko/vk
    ```
 4. Authorize and copy the `access_token` from the URL
 
+Use your own app rather than a shared app ID you found somewhere. A VK token is
+bound to the app that issued it: if that app is ever blocked, every token it
+issued stops working and every call returns `error 8: Application is blocked`,
+no matter how valid your token looks.
+
 ## Configuration
 
 ### Claude Desktop

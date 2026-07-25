@@ -18,7 +18,7 @@
       },
       "environmentVariables": [
         {
-          "description": "VK API access token. Get it at https://oauth.vk.com/authorize?client_id=6121396&scope=wall,friends,groups,photos,stats,offline&response_type=token",
+          "description": "VK API access token, issued by your own Standalone app (create one at https://vk.com/editapp?act=create). See the README for the authorisation URL. A token is bound to the app that issued it, so use your own rather than a shared app ID.",
           "isRequired": true,
           "isSecret": true,
           "name": "VK_ACCESS_TOKEN"

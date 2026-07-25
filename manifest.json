@@ -34,7 +34,7 @@
     "vk_access_token": {
       "type": "string",
       "title": "VK access token",
-      "description": "Create one at https://oauth.vk.com/authorize?client_id=6121396&scope=wall,friends,groups,photos,stats,offline&response_type=token — after authorising, copy the access_token value out of the address bar.",
+      "description": "Create a Standalone app at https://vk.com/editapp?act=create and copy its App ID. Then open https://oauth.vk.com/authorize?client_id=YOUR_APP_ID&display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=wall,friends,groups,photos,stats,offline&response_type=token&v=5.199 — authorise, and copy the access_token value out of the address bar. Use your own app: a token is bound to the app that issued it, so it stops working if that app is ever blocked.",
       "sensitive": true,
       "required": true
     },
