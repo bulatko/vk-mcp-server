@@ -169,11 +169,22 @@ class VKClient {
 // SETUP
 // ============================================
 
+// Token helper runs instead of the server, so it must come before the check below.
+if (process.argv.includes('--login')) {
+  const { runLogin } = await import('./login.js');
+  await runLogin().catch((error) => {
+    console.error(`Login failed: ${error.message}`);
+    process.exit(1);
+  });
+  process.exit(0);
+}
+
 const VK_ACCESS_TOKEN = process.env.VK_ACCESS_TOKEN;
 
 if (!VK_ACCESS_TOKEN) {
-  console.error('Error: VK_ACCESS_TOKEN environment variable is required');
-  console.error('Get your token at: https://vk.com/dev');
+  console.error('Error: VK_ACCESS_TOKEN environment variable is required.');
+  console.error('Run `npx vk-mcp-server --login <APP_ID>` to obtain one interactively,');
+  console.error('or see https://github.com/bulatko/vk-mcp-server#getting-vk-access-token');
   process.exit(1);
 }
 

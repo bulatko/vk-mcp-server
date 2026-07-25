@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "vk-mcp-server",
   "display_name": "VK",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Read and post to VK (VKontakte) — walls, communities, users, photos and stats.",
   "long_description": "Connects an AI assistant to the VK (VKontakte) social network. Read walls, search users and communities, inspect members and reactions, pull community statistics, and — when you ask it to — publish posts, comments and photos.\n\nRead-only tools are marked as such, so a client can run lookups freely while still asking before anything is posted, edited or deleted.\n\nNeeds a VK access token, which you can create from your VK account in about a minute.",
   "author": {

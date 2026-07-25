@@ -39,7 +39,9 @@
   audience snapshot, community search
 - **Resilient**: request timeouts, automatic backoff when VK rate-limits, and
   clear messages for captchas and HTTP failures
-- **Tested**: 44 tests driving the real server over the MCP protocol
+- **Guided setup**: `npx vk-mcp-server --login` walks the VK ID flow and hands
+  you a token — no OAuth wrangling
+- **Tested**: 48 tests driving the real server over the MCP protocol
 
 ## Quick Start
 
@@ -78,18 +80,41 @@ io.github.bulatko/vk
 
 ## Getting VK Access Token
 
-1. Go to [VK Developers](https://vk.com/dev) and create a Standalone app
-2. Get your app ID
-3. Open this URL (replace `YOUR_APP_ID`):
-   ```
-   https://oauth.vk.com/authorize?client_id=YOUR_APP_ID&display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=friends,wall,groups,photos,stats,offline&response_type=token&v=5.199
-   ```
-4. Authorize and copy the `access_token` from the URL
+### The easy way
 
-Use your own app rather than a shared app ID you found somewhere. A VK token is
-bound to the app that issued it: if that app is ever blocked, every token it
-issued stops working and every call returns `error 8: Application is blocked`,
-no matter how valid your token looks.
+```bash
+npx vk-mcp-server --login <YOUR_APP_ID>
+```
+
+This opens VK in your browser, waits for you to authorise, and prints the
+token. Nothing is copied out of an address bar.
+
+You need an App ID first: create a **Standalone** app at
+[vk.com/editapp?act=create](https://vk.com/editapp?act=create), then add
+`http://127.0.0.1:8790/callback` under the app's trusted redirect URIs so VK
+will hand the token back to the helper. (Use `VK_LOGIN_PORT` to pick another
+port — register whichever one you use.)
+
+Create your own app rather than reusing an App ID you found somewhere. A VK
+token is bound to the app that issued it: if that app is ever blocked, every
+token it issued stops working and every call answers `error 8: Application is
+blocked`, however valid the token itself looks.
+
+### Doing it by hand
+
+VK now uses VK ID, which is OAuth 2.1 with PKCE. The old implicit flow
+(`response_type=token`) answers `Security Error` for apps created recently, so
+a manual flow means generating a `code_verifier`, hashing it into a
+`code_challenge`, authorising at `https://id.vk.ru/authorize`, and exchanging
+the returned `code` at `https://id.vk.ru/oauth2/auth`. The helper above does
+exactly this — there is little reason to repeat it by hand.
+
+### Community token (for posting to your own community)
+
+If all you want is to read and post in a community you manage, skip user
+tokens: open the community, then **Manage → API usage → Access tokens →
+Create token**, and tick `wall`, `photos` and `manage`. Community tokens do not
+expire and need no OAuth flow.
 
 ## Configuration
 

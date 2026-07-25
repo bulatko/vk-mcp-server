@@ -8,3 +8,6 @@ node_modules/
 
 # Built .mcpb bundles
 dist/
+
+# Local credentials for development and live testing
+.env.local
