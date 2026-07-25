@@ -43,7 +43,7 @@
   you a token — no OAuth wrangling
 - **Self-diagnosing**: `--check` reports which of the three VK token types you
   have and which tools it can reach, and every VK error carries the fix
-- **Tested**: 58 tests driving the real server over the MCP protocol
+- **Tested**: 65 tests driving the real server over the MCP protocol
 
 ## Quick Start
 
@@ -146,7 +146,7 @@ Add to your project's `.mcp.json`:
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `VK_ACCESS_TOKEN` | yes | — | VK API access token |
+| `VK_ACCESS_TOKEN` | for tool calls | — | VK API access token. The server starts and lists its tools without one; calling a tool then returns an error saying so |
 | `VK_TIMEOUT_MS` | no | `30000` | Abort a VK request that hangs longer than this |
 | `VK_API_BASE` | no | `https://api.vk.com/method` | Point the server at an API mirror or proxy |
 
@@ -185,6 +185,7 @@ Common cases:
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |
 | `error 5` with `subcode 1130` | VK bound the token to the IP that authorised it, and the server is on a different one. Common when the server runs on a VPS but you signed in from your laptop. Get the token on the machine that runs the server, or use a community token. |
 | `Security Error` when authorising | The old implicit OAuth flow. Use `--login`, which does the current VK ID flow. |
+| `No VK token configured` on every tool | The server is running but your client never passed `VK_ACCESS_TOKEN` to it. Check the `env` block in your client config — a token in your shell does not reach a server the client spawns itself. |
 
 The server turns these into messages that say what to do, so the model can
 usually explain the fix without you reading this table.
@@ -265,16 +266,27 @@ Once configured, you can ask Claude:
 
 ### Example Conversation
 
-```
-User: What's on Pavel Durov's wall?
+A real exchange — the numbers below came back from VK while this was written.
 
-Claude: I'll check Pavel Durov's VK wall for recent posts.
-[Uses vk_wall_get with domain="durov"]
-
-Here are the latest posts from Pavel Durov's wall:
-1. [Post content...]
-2. [Post content...]
 ```
+You:    How big is the VK Mini Apps community, and how are its recent posts doing?
+
+Claude: [vk_groups_get_by_id  group_ids="apiclub", fields="members_count,activity"]
+        [vk_wall_get          domain="apiclub", count=3]
+
+        VK Mini Apps (@vkappsdev, id 166562603) — 245,457 members, filed under
+        Programming, with 898 posts on the wall. The three most recent:
+
+        21 Jan   22,653 views   46 likes   15 reposts   "Готовы сделать этот год прорывным?..."
+        20 Jul      529 views   18 likes    0 reposts   (photo post, no text)
+        13 Jul    3,782 views   11 likes    3 reposts   "Суперсила игр и приложений в соцсети..."
+
+        The January post reached forty times the audience of the July ones —
+        worth a look at what it did differently.
+```
+
+The model gets each of those numbers as typed fields rather than text it has to
+parse, because every tool declares an output schema.
 
 ## Changelog
 
