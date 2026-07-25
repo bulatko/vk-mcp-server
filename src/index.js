@@ -76,6 +76,10 @@ class VKClient {
   // Stats
   statsGet(params) { return this.call('stats.get', params); }
 
+  // Likes
+  likesGetList(params) { return this.call('likes.getList', params); }
+  likesIsLiked(params) { return this.call('likes.isLiked', params); }
+
   // Photos
   photosGet(params) { return this.call('photos.get', params); }
   photosGetWallUploadServer(params) { return this.call('photos.getWallUploadServer', params); }
@@ -355,6 +359,30 @@ const tools = [
     },
   },
   {
+    name: 'vk_likes_get',
+    description: 'Get list of users who liked a VK object and reaction counts. Also returns available reaction types for the object.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          description: 'Object type',
+          enum: ['post', 'comment', 'photo', 'audio', 'video', 'note', 'photo_comment', 'video_comment', 'topic_comment', 'sitepage'],
+        },
+        owner_id: { type: 'number', description: 'Owner ID of the object (negative for community)' },
+        item_id: { type: 'number', description: 'Object ID' },
+        reaction_id: {
+          type: 'number',
+          description: 'Filter by reaction: 0 — like ❤️, 1 — laugh 😂, 2 — wow 😮, 3 — admiration 🔥, 4 — angry 😡, 5 — sad 😢',
+          enum: [0, 1, 2, 3, 4, 5],
+        },
+        count: { type: 'number', description: 'Number of users to return (max 1000)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+      },
+      required: ['type', 'item_id'],
+    },
+  },
+  {
     name: 'vk_photos_get',
     description: 'Get photos from albums',
     inputSchema: {
@@ -447,6 +475,17 @@ async function handleToolCall(name, args) {
         result = await vk.wallDelete({
           owner_id: args.owner_id,
           post_id: args.post_id,
+        });
+        break;
+
+      case 'vk_likes_get':
+        result = await vk.likesGetList({
+          type: args.type,
+          owner_id: args.owner_id,
+          item_id: args.item_id,
+          reaction_id: args.reaction_id,
+          count: args.count || 100,
+          offset: args.offset,
         });
         break;
 
