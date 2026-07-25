@@ -17,7 +17,10 @@ const ID_BASE = process.env.VK_ID_BASE || 'https://id.vk.ru';
 const AUTHORIZE_URL = `${ID_BASE}/authorize`;
 const TOKEN_URL = `${ID_BASE}/oauth2/auth`;
 const PORT = Number(process.env.VK_LOGIN_PORT) || 8790;
-const REDIRECT_URI = `http://127.0.0.1:${PORT}/callback`;
+// On a remote box the browser that authorises is not on the same machine as
+// this helper, so a loopback redirect never comes back. VK_LOGIN_REDIRECT lets
+// you point VK at a public URL that reaches this listener (e.g. through nginx).
+const REDIRECT_URI = process.env.VK_LOGIN_REDIRECT || `http://127.0.0.1:${PORT}/callback`;
 const SCOPE = 'wall,friends,groups,photos,stats,offline';
 
 const base64url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -41,7 +44,10 @@ function waitForCallback(server, expectedState) {
   return new Promise((resolve, reject) => {
     server.on('request', (req, res) => {
       const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
-      if (url.pathname !== '/callback') {
+      // Match on the payload rather than the path: behind a reverse proxy the
+      // public path (/vk-oauth-callback) rarely equals the local one.
+      const isCallback = url.searchParams.has('code') || url.searchParams.has('error');
+      if (!isCallback) {
         res.writeHead(404).end();
         return;
       }
@@ -113,6 +119,16 @@ export async function runLogin() {
 
   console.error(`This app must allow ${REDIRECT_URI} as a redirect URI.`);
   console.error('Add it under Manage app → Settings → Trusted redirect URI if VK refuses.\n');
+
+  if (process.env.VK_LOGIN_REDIRECT) {
+    // A public redirect means the browser is probably not on this machine, and
+    // VK binds the token to the IP that authorises. It will work for a minute
+    // and then fail with error 5 subcode 1130, which looks like nothing.
+    console.error('Warning: you are authorising through a public redirect, so the browser may');
+    console.error('be on a different machine than this server. VK ties the token to the IP that');
+    console.error('signs in, so such a token will start failing with error 5 (subcode 1130).');
+    console.error('Run this on the machine that will host the server, or use a community token.\n');
+  }
   console.error('Opening VK in your browser. If nothing opens, visit:\n');
   console.error(`${authorizeUrl}\n`);
   openBrowser(authorizeUrl.toString());

@@ -64,6 +64,20 @@ const ERROR_HINTS = {
     'Use a user token (`npx vk-mcp-server --login <APP_ID>`) or a community token, depending on whose data you are after.',
 };
 
+/**
+ * Subcodes override the code-level hint where they mean something more
+ * specific. 1130 is the one that catches people out: the token is valid, the
+ * account is fine, and it still fails — because VK bound it to the IP that
+ * authorised, and this server is somewhere else.
+ */
+const ERROR_SUBCODE_HINTS = {
+  1130:
+    'VK bound this token to the IP address that authorised it, and requests are now coming from a different one. ' +
+    'This happens when the server runs on one machine (a VPS, say) and the browser that signed in is on another. ' +
+    'Either obtain the token from the machine that will run the server, or use a community token — those are created ' +
+    'in the community settings and are not tied to a browser session.',
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class VKClient {
@@ -119,7 +133,7 @@ class VKClient {
         );
       }
 
-      const hint = ERROR_HINTS[code];
+      const hint = ERROR_SUBCODE_HINTS[data.error.error_subcode] || ERROR_HINTS[code];
       throw new Error(`VK API Error ${code}: ${msg}${hint ? ` — ${hint}` : ''}`);
     }
 

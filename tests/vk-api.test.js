@@ -278,6 +278,21 @@ describe('VK error handling', () => {
     expect(result.error).toMatch(/--login|community token/i);
   });
 
+  it('explains an IP-bound token rather than blaming the token', async () => {
+    // Error 5 normally means "get a new token", but subcode 1130 means the
+    // token is fine and the request is simply coming from elsewhere.
+    nextResponse = {
+      error: {
+        error_code: 5,
+        error_subcode: 1130,
+        error_msg: 'User authorization failed: access_token was given to another ip address',
+      },
+    };
+    const result = await call('vk_users_get', { user_ids: '1' });
+    expect(result.error).toMatch(/IP address/i);
+    expect(result.error).toMatch(/community token/i);
+  });
+
   it('tells the user to re-issue an expired token', async () => {
     nextResponse = { error: { error_code: 5, error_msg: 'User authorization failed' } };
     const result = await call('vk_users_get', { user_ids: '1' });

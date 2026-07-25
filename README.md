@@ -111,6 +111,19 @@ a manual flow means generating a `code_verifier`, hashing it into a
 the returned `code` at `https://id.vk.ru/oauth2/auth`. The helper above does
 exactly this — there is little reason to repeat it by hand.
 
+### Running on a remote server
+
+VK ties a user token to the IP address that authorised it. If the server runs
+on a VPS and you sign in from your own browser, the token works for about a
+minute and then every call fails with `error 5, subcode 1130` — which looks
+like a broken token but is not.
+
+`--login` supports `VK_LOGIN_REDIRECT` so the callback can come back through a
+public URL, but that does not change the binding. For a remote install, either
+run `--login` on the server itself (through a text browser or by forwarding a
+port), or use a community token, which is created in the community settings and
+is not tied to any browser session.
+
 ### Community token (for posting to your own community)
 
 If all you want is to read and post in a community you manage, skip user
@@ -197,6 +210,7 @@ Common cases:
 | `error 5: User authorization failed` | The token expired or was revoked — run `--login` again. |
 | `error 1051` or `error 28` | A service token cannot call user methods. Use a user or community token. |
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |
+| `error 5` with `subcode 1130` | VK bound the token to the IP that authorised it, and the server is on a different one. Common when the server runs on a VPS but you signed in from your laptop. Get the token on the machine that runs the server, or use a community token. |
 | `Security Error` when authorising | The old implicit OAuth flow. Use `--login`, which does the current VK ID flow. |
 
 The server turns these into messages that say what to do, so the model can
