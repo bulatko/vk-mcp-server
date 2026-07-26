@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1
+
+- The card handles a single attachment properly: it takes the width and keeps
+  its own proportions instead of being cropped into a thumbnail cell, which
+  had been cutting the top and bottom off vertical clips. The duration badge
+  sits on the picture rather than beside it
+- Photos are fetched at the smallest size that still covers a retina render.
+  VK offers up to 2560px and the card is never wider than a chat column
+
 ## 0.5.0
 
 - `vk_wall_get` now comes with a card. A wall is photos, clips, view counts and
