@@ -246,6 +246,54 @@ describe('tools/call', () => {
   });
 });
 
+describe('app UI resources', () => {
+  // The card is only reachable if three things line up: the capability, the
+  // resource, and the tool pointing at it. Any one missing and the host
+  // silently falls back to showing JSON.
+  it('advertises the resources capability', () => {
+    expect(client.getServerCapabilities()).toHaveProperty('resources');
+  });
+
+  it('lists the wall card as an app resource', async () => {
+    const { resources } = await client.listResources();
+    const card = resources.find((r) => r.uri === 'ui://vk/wall.html');
+    expect(card).toBeDefined();
+    // The profile parameter is what marks it as an MCP App rather than a page.
+    expect(card.mimeType).toBe('text/html;profile=mcp-app');
+  });
+
+  it('points vk_wall_get at the card in both metadata spellings', () => {
+    // Current hosts read _meta.ui.resourceUri; earlier ones read the flat key.
+    const wall = tools.find((t) => t.name === 'vk_wall_get');
+    expect(wall._meta.ui.resourceUri).toBe('ui://vk/wall.html');
+    expect(wall._meta['ui/resourceUri']).toBe('ui://vk/wall.html');
+  });
+
+  it('serves HTML that renders the tool result', async () => {
+    const { contents } = await client.readResource({ uri: 'ui://vk/wall.html' });
+    expect(contents[0].mimeType).toBe('text/html;profile=mcp-app');
+    expect(contents[0].text).toMatch(/<!doctype html>/i);
+    // Without the handshake and the result notification the card stays blank.
+    expect(contents[0].text).toContain('ui/initialize');
+    expect(contents[0].text).toContain('ui/notifications/tool-result');
+  });
+
+  it('declares the origins VK serves photos from', async () => {
+    // Hosts block every origin by default, which would leave the card
+    // text-only against a policy nobody wrote down.
+    const { contents } = await client.readResource({ uri: 'ui://vk/wall.html' });
+    expect(contents[0]._meta.ui.csp.resourceDomains).toEqual(
+      expect.arrayContaining(['https://*.userapi.com'])
+    );
+  });
+
+  it('refuses an unknown resource instead of reading an arbitrary file', async () => {
+    await expect(client.readResource({ uri: 'ui://vk/../../etc/passwd' })).rejects.toThrow(
+      /Unknown resource/i
+    );
+  });
+});
+
 describe('without a token', () => {
   // Registries introspect by starting the server with no credentials at all.
   // When this failed, Glama listed us with an empty tool array and the

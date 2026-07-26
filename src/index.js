@@ -13,8 +13,13 @@ import {
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 // Single source of truth for the version — announcing a hardcoded one drifts.
 const { version: VERSION } = createRequire(import.meta.url)('../package.json');
@@ -279,6 +284,52 @@ const VK_ACCESS_TOKEN = process.env.VK_ACCESS_TOKEN;
 const vk = new VKClient(VK_ACCESS_TOKEN);
 
 // ============================================
+// APP UI (MCP Apps)
+// ============================================
+
+/**
+ * A wall is a stream of photos, view counts and reactions, and handing it to
+ * the model as JSON throws all of that away — the user reads a transcription of
+ * a feed instead of seeing one. MCP Apps let a tool name an HTML resource the
+ * host renders in the conversation, so `vk_wall_get` returns both: structured
+ * data for the model, and a card for the person.
+ *
+ * The extension is versioned separately from the core protocol (2026-01-26) and
+ * hosts that do not implement it simply ignore the metadata, so this costs
+ * nothing where it is unsupported.
+ */
+const UI_MIME_TYPE = 'text/html;profile=mcp-app';
+const WALL_UI_URI = 'ui://vk/wall.html';
+
+const UI_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ui');
+
+/**
+ * VK serves photos from a spread of hosts that changes without notice, so the
+ * policy names the families rather than individual origins. Nothing is allowed
+ * to phone home: the card renders what the tool already returned.
+ */
+const WALL_UI_CSP = {
+  resourceDomains: ['https://*.userapi.com', 'https://*.vk.com', 'https://*.vk.me'],
+};
+
+const UI_RESOURCES = [
+  {
+    uri: WALL_UI_URI,
+    name: 'VK wall card',
+    description: 'Renders the posts returned by vk_wall_get, with photos, views and reactions.',
+    mimeType: UI_MIME_TYPE,
+    file: 'wall.html',
+    _meta: { ui: { csp: WALL_UI_CSP } },
+  },
+];
+
+/**
+ * Both spellings go on the wire: hosts on the current extension read
+ * `_meta.ui.resourceUri`, earlier ones read the flat `ui/resourceUri` key, and
+ * the official helper emits both for exactly this reason.
+ */
+const uiToolMeta = (uri) => ({ ui: { resourceUri: uri }, 'ui/resourceUri': uri });
+// ============================================
 // TOOL DEFINITIONS
 // ============================================
 
@@ -319,6 +370,7 @@ const tools = [
     name: 'vk_wall_get',
     title: 'Read a wall',
     description: 'Read posts from a user or community wall, newest first. Pass domain for a short address (durov) or owner_id for a numeric one — negative for a community, positive for a person. Each post carries its likes, reposts, comments and views.',
+    _meta: uiToolMeta(WALL_UI_URI),
     inputSchema: {
       type: 'object',
       properties: {
@@ -1077,16 +1129,33 @@ const prompts = [
   },
 ];
 
+
 // ============================================
 // SERVER SETUP
 // ============================================
 
 const server = new Server(
   { name: 'vk-mcp-server', version: VERSION },
-  { capabilities: { tools: {}, prompts: {} } }
+  { capabilities: { tools: {}, prompts: {}, resources: {} } }
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  resources: UI_RESOURCES.map(({ file, ...resource }) => resource),
+}));
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const resource = UI_RESOURCES.find((r) => r.uri === request.params.uri);
+  if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
+
+  const text = await readFile(path.join(UI_DIR, resource.file), 'utf8');
+  return {
+    contents: [
+      { uri: resource.uri, mimeType: resource.mimeType, text, _meta: resource._meta },
+    ],
+  };
+});
 
 server.setRequestHandler(ListPromptsRequestSchema, async () => ({
   prompts: prompts.map(({ build, ...prompt }) => prompt),

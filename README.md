@@ -38,6 +38,10 @@
 - **Pagination that explains itself**: list results say how many matches exist
   and which offset continues from here, so the model can page through a wall
   instead of stopping at the first twenty posts
+- **A wall you can look at**: on hosts that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)
+  — Claude, Claude Desktop, VS Code Copilot, Goose — `vk_wall_get` renders the
+  posts as a card with photos, clip previews and counters. Everywhere else it
+  behaves exactly as before
 - **Prompts**: ready-made workflows — community digest, engagement report,
   audience snapshot, community search
 - **Resilient**: request timeouts, automatic backoff when VK rate-limits, and
@@ -46,7 +50,7 @@
   you a token — no OAuth wrangling
 - **Self-diagnosing**: `--check` reports which of the three VK token types you
   have and which tools it can reach, and every VK error carries the fix
-- **Tested**: 71 tests driving the real server over the MCP protocol
+- **Tested**: 80 tests driving the real server over the MCP protocol
 
 ## Quick Start
 

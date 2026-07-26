@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0
+
+- `vk_wall_get` now comes with a card. A wall is photos, clips, view counts and
+  reactions; handed over as JSON it arrives as a transcription of a feed rather
+  than a feed. Hosts that support MCP Apps — Claude, Claude Desktop, VS Code
+  Copilot, Goose and others — render the posts with their pictures, video
+  previews with durations, and the counters, while the model still receives the
+  same structured data. Hosts without the extension ignore the metadata and see
+  no difference
+- The server serves resources for the first time (`resources/list`,
+  `resources/read`), which is what carries the card
+- Photos are fetched under a policy that names VK's own origins and nothing
+  else; the card makes no network requests of its own. A picture VK has expired
+  removes its frame instead of leaving a hole
+
 ## 0.4.4
 
 - List results carry a `pagination` block: the total, how many came back, the

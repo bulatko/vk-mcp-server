@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>VK wall</title>
+    <style>
+      /*
+       * The host hands its own palette down as CSS variables; these are the
+       * fallbacks for a host that sends none, and they follow the system
+       * theme rather than assuming light.
+       */
+      :root {
+        color-scheme: light dark;
+        --vk-fg: light-dark(#0d0d0d, #f2f2f2);
+        --vk-muted: light-dark(#6a6f73, #9aa0a6);
+        --vk-bg: light-dark(#ffffff, #1a1a1a);
+        --vk-card: light-dark(#f6f7f8, #242424);
+        --vk-line: light-dark(#e3e5e8, #333333);
+        --vk-accent: #07f;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: 12px;
+        font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: var(--vk-fg);
+        background: var(--vk-bg);
+      }
+
+      .head {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .head h1 { font-size: 15px; margin: 0; font-weight: 600; }
+      .head .count { color: var(--vk-muted); font-size: 13px; }
+
+      .post {
+        background: var(--vk-card);
+        border: 1px solid var(--vk-line);
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+
+      .post .when { color: var(--vk-muted); font-size: 12px; margin-bottom: 6px; }
+      .post .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+      /* Long posts are the norm on VK; clamp so the card stays scannable. */
+      .post .text.clamped {
+        display: -webkit-box;
+        -webkit-line-clamp: 6;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .post .more {
+        background: none;
+        border: 0;
+        padding: 4px 0 0;
+        color: var(--vk-accent);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .photos {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .photos .frame { position: relative; }
+      .photos img {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+        border-radius: 6px;
+        display: block;
+      }
+      /* Videos are indistinguishable from stills without it. */
+      .photos .play {
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.65);
+        color: #fff;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stats {
+        display: flex;
+        gap: 14px;
+        margin-top: 10px;
+        color: var(--vk-muted);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .empty { color: var(--vk-muted); padding: 24px 0; text-align: center; }
+
+      .more-pages {
+        color: var(--vk-muted);
+        font-size: 12px;
+        text-align: center;
+        padding: 4px 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <h1 id="title">VK wall</h1>
+      <span class="count" id="count"></span>
+    </div>
+    <div id="posts"></div>
+    <div class="more-pages" id="pages"></div>
+
+    <script>
+      // The MCP Apps handshake is small enough to speak directly: the App class
+      // from @modelcontextprotocol/ext-apps is a convenience wrapper, and taking
+      // it would mean a bundler in a project that has never needed one.
+      const PROTOCOL_VERSION = '2026-01-26';
+      const host = window.parent;
+      let nextId = 1;
+
+      function send(message) {
+        host.postMessage({ jsonrpc: '2.0', ...message }, '*');
+      }
+
+      function request(method, params) {
+        const id = nextId++;
+        send({ id, method, params });
+        return id;
+      }
+
+      const fmt = new Intl.NumberFormat();
+      const el = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+
+      function when(unixSeconds) {
+        const date = new Date(unixSeconds * 1000);
+        return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+
+      const widest = (sizes) =>
+        Array.isArray(sizes) && sizes.length
+          ? sizes.reduce((best, size) => (size.width > (best?.width ?? 0) ? size : best), null)?.url ?? null
+          : null;
+
+      /**
+       * A wall post carries a photo, a video, or neither. Videos matter as much
+       * as photos here — clips are often the whole post, and skipping them left
+       * those cards showing a date and nothing else.
+       */
+      function previewOf(attachment) {
+        if (attachment.type === 'photo') {
+          const url = widest(attachment.photo?.sizes);
+          return url ? { url, label: null } : null;
+        }
+        if (attachment.type === 'video') {
+          const url = widest(attachment.video?.image);
+          if (!url) return null;
+          const seconds = attachment.video?.duration;
+          const label = typeof seconds === 'number'
+            ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+            : '▶';
+          return { url, label };
+        }
+        return null;
+      }
+
+      function renderPost(post) {
+        const card = el('div', 'post');
+        card.append(el('div', 'when', when(post.date)));
+
+        if (post.text) {
+          const text = el('div', 'text', post.text);
+          // 400 characters is roughly where the clamp starts hiding something.
+          if (post.text.length > 400) {
+            text.classList.add('clamped');
+            const more = el('button', 'more', 'Show more');
+            more.addEventListener('click', () => {
+              text.classList.remove('clamped');
+              more.remove();
+            });
+            card.append(text, more);
+          } else {
+            card.append(text);
+          }
+        }
+
+        const previews = (post.attachments || []).map(previewOf).filter(Boolean);
+
+        if (previews.length) {
+          const grid = el('div', 'photos');
+          for (const preview of previews) {
+            const frame = el('div', 'frame');
+            const img = el('img');
+            img.src = preview.url;
+            img.loading = 'lazy';
+            img.alt = '';
+            // VK's CDN links expire, and a host may refuse the origin outright.
+            // A broken image leaves a hole the size of the picture; drop the
+            // frame instead, and the grid closes over it.
+            img.addEventListener('error', () => {
+              frame.remove();
+              if (!grid.childElementCount) grid.remove();
+            });
+            frame.append(img);
+            if (preview.label) frame.append(el('span', 'play', preview.label));
+            grid.append(frame);
+          }
+          card.append(grid);
+        }
+
+        const stats = el('div', 'stats');
+        // Words rather than emoji: a host without an emoji font renders those
+        // as empty boxes, and there is no way to know in advance which it has.
+        const add = (label, value) => {
+          if (typeof value !== 'number') return;
+          stats.append(el('span', null, `${fmt.format(value)} ${value === 1 ? label : label + 's'}`));
+        };
+        add('view', post.views?.count);
+        add('like', post.likes?.count);
+        add('repost', post.reposts?.count);
+        add('comment', post.comments?.count);
+        if (stats.childElementCount) card.append(stats);
+
+        return card;
+      }
+
+      function render(result) {
+        const data = result?.structuredContent;
+        const posts = Array.isArray(data?.items) ? data.items : [];
+        const list = document.getElementById('posts');
+        list.replaceChildren();
+
+        if (!posts.length) {
+          list.append(el('div', 'empty', 'No posts came back.'));
+          document.getElementById('count').textContent = '';
+          document.getElementById('pages').textContent = '';
+          return;
+        }
+
+        document.getElementById('count').textContent =
+          typeof data.count === 'number' ? `${fmt.format(data.count)} posts` : '';
+
+        for (const post of posts) list.append(renderPost(post));
+
+        const next = data.pagination?.next_offset;
+        document.getElementById('pages').textContent =
+          typeof next === 'number' ? `Showing ${posts.length} — ask for more from offset ${next}` : '';
+      }
+
+      window.addEventListener('message', (event) => {
+        if (event.source !== host) return;
+        const message = event.data;
+        if (!message || message.jsonrpc !== '2.0') return;
+
+        if (message.method === 'ui/notifications/tool-result') {
+          render(message.params);
+        }
+      });
+
+      // Handshake: initialize, then announce we are ready for notifications.
+      request('ui/initialize', {
+        appInfo: { name: 'VK wall', version: '1.0.0' },
+        appCapabilities: {},
+        protocolVersion: PROTOCOL_VERSION,
+      });
+
+      window.addEventListener('message', function onInit(event) {
+        if (event.source !== host) return;
+        const message = event.data;
+        if (message?.id === 1 && message?.result) {
+          send({ method: 'ui/notifications/initialized' });
+          window.removeEventListener('message', onInit);
+        }
+      });
+    </script>
+  </body>
+</html>

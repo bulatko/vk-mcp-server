@@ -6,12 +6,12 @@
     "url": "https://github.com/bulatko/vk-mcp-server.git",
     "source": "github"
   },
-  "version": "0.4.4",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "vk-mcp-server",
-      "version": "0.4.4",
+      "version": "0.5.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
