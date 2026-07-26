@@ -12,14 +12,26 @@ Both take about two minutes.
 If you only ever wanted "let the assistant run my community", take the first
 one. It is three clicks and there is no OAuth involved.
 
+**Not the service key.** VK also hands out a *service key* on every app page,
+and it is the easiest of the three to obtain — which is why people reach for it
+first and conclude the server is broken. Measured against the live API, it
+opens three of the nineteen tools: `vk_users_get`, `vk_wall_get` and
+`vk_groups_get_by_id`. Everything else — photos, reactions, search, members,
+individual posts, statistics — refuses it with error 1051 or 28. Use it only if
+public profiles and walls are genuinely all you need.
+
 ---
 
 ## Community token — 3 steps, no app
 
 1. Open the community you manage → **Manage** (right-hand menu).
-2. Go to **API usage** → **Access tokens** → **Create token**.
+2. Find **API usage** — recent VK builds file it under **Advanced** in that
+   menu — then **Access tokens** → **Create token**.
 3. Tick **wall**, **photos** and, if you want the assistant to see statistics,
    **manage**. Confirm, and copy the token.
+
+The page lives in the full web version; the mobile app has no API section at
+all, so on a phone you need a browser with "desktop site" turned on.
 
 That is the whole thing. The token does not expire and is not tied to your
 browser, so it keeps working from any machine — including a server.

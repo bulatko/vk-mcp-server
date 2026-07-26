@@ -70,9 +70,17 @@ export async function runCheck() {
 
   // Probe what the token can actually reach. Each of these is a read, and each
   // one maps to a group of tools the user would otherwise find broken by trial.
+  // Every probe reads something public, so a failure means the token, not the
+  // target. Covering only a few of these was worse than useless: a service
+  // token passed "read public profiles and walls" and the user concluded that
+  // reading worked, then met a refusal on photos or reactions later.
   const probes = [
     ['read public profiles and walls', 'users.get', { user_ids: 'durov' }, 'vk_users_get, vk_wall_get, vk_groups_get_by_id'],
+    ['read individual posts by id', 'wall.getById', { posts: '-166562603_1' }, 'vk_wall_get_by_id'],
+    ['read photos', 'photos.get', { owner_id: -166562603, album_id: 'wall', count: 1 }, 'vk_photos_get'],
+    ['see who reacted to a post', 'likes.getList', { type: 'post', owner_id: -166562603, item_id: 1, count: 1 }, 'vk_likes_get'],
     ['search users and communities', 'groups.search', { q: 'test', count: 1 }, 'vk_users_search, vk_groups_search'],
+    ['list community members', 'groups.getMembers', { group_id: 'apiclub', count: 1 }, 'vk_groups_get_members'],
     ['read your communities', 'groups.get', { count: 1 }, 'vk_groups_get'],
     ['read your friends', 'friends.get', { count: 1 }, 'vk_friends_get'],
     ['read your newsfeed', 'newsfeed.get', { count: 1 }, 'vk_newsfeed_get'],
@@ -83,12 +91,19 @@ export async function runCheck() {
   for (const [label, method, params, tools] of probes) {
     const result = await call(token, method, params);
     if (result.error) {
-      console.error(`  ${NO} ${label}  (${tools})`);
-      blocked.push({ label, code: result.error.error_code, msg: result.error.error_msg });
+      const { error_code: code } = result.error;
+      // 15 does not distinguish "this community hides the data" from "a token
+      // of this kind never sees it" — VK returns the same refusal for both, so
+      // saying which one it is would be a guess.
+      const note = code === 15 ? ' — hidden by the community, or by this token kind' : '';
+      console.error(`  ${NO} ${label}  (${tools})${note}`);
+      blocked.push({ label, code, msg: result.error.error_msg });
     } else {
       console.error(`  ${OK} ${label}`);
     }
   }
+  console.error(`  ? read community statistics  (vk_stats_get) — not probed: it needs`);
+  console.error('    admin rights on a specific community, so any answer here would mislead');
 
   if (blocked.length) {
     console.error('\nWhy some of those are unavailable:');
@@ -99,8 +114,10 @@ export async function runCheck() {
       console.error(`  error ${b.code}: ${b.msg}`);
     }
     if (kind === 'service') {
-      console.error('\n  A service token only reaches public data. For the rest, run');
-      console.error('  `npx vk-mcp-server --login <APP_ID>` to get a user token.');
+      console.error('\n  A service token is the weakest of the three: it reaches three of the');
+      console.error('  nineteen tools — public profiles, walls and community info — and nothing');
+      console.error('  else. If you manage a community, a community token takes three clicks and');
+      console.error('  covers far more; otherwise run `npx vk-mcp-server --login <APP_ID>`.');
     } else if (kind === 'community') {
       console.error('\n  Community tokens act as the community, so they cannot read a person\'s');
       console.error('  friends or newsfeed. That is expected, not a misconfiguration.');

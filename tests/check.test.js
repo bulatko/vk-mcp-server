@@ -83,6 +83,41 @@ describe('--check', () => {
     expect(stderr).toMatch(/--login/);
   }, 20000);
 
+  it('probes the reads that a weak token silently loses', async () => {
+    // A service token passes users.get and fails these; reporting only the
+    // first led people to believe reading worked until they hit one of them.
+    const refused = { error: { error_code: 1051, error_msg: 'unavailable with current profile type' } };
+    responses['users.get'] = { response: [] };
+    responses['groups.getById'] = { response: { groups: [] } };
+    responses['wall.getById'] = refused;
+    responses['photos.get'] = refused;
+    responses['likes.getList'] = refused;
+    const { stderr } = await runCheck();
+
+    expect(stderr).toMatch(/vk_wall_get_by_id/);
+    expect(stderr).toMatch(/vk_photos_get/);
+    expect(stderr).toMatch(/vk_likes_get/);
+  }, 20000);
+
+  it('does not claim to know why a community hid its members', async () => {
+    // VK answers 15 both when the community hides members and when the token
+    // kind may never see them; the output must not pick one.
+    responses['users.get'] = { response: [{ id: 1, first_name: 'A', last_name: 'B' }] };
+    responses['groups.getMembers'] = { error: { error_code: 15, error_msg: 'Access denied: group hide members' } };
+    const { stderr } = await runCheck();
+
+    expect(stderr).toMatch(/hidden by the community, or by this token kind/);
+  }, 20000);
+
+  it('says statistics were not probed rather than guessing', async () => {
+    // stats.get needs admin rights on one particular community, so probing a
+    // public one would report a failure that says nothing about the token.
+    responses['users.get'] = { response: [{ id: 1, first_name: 'A', last_name: 'B' }] };
+    const { stderr } = await runCheck();
+
+    expect(stderr).toMatch(/vk_stats_get.*not probed|not probed.*admin rights/s);
+  }, 20000);
+
   it('explains an expired token instead of printing a bare code', async () => {
     responses['users.get'] = { error: { error_code: 5, error_msg: 'User authorization failed' } };
     const { code, stderr } = await runCheck();
