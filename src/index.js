@@ -6,14 +6,8 @@
  * Позволяет AI-ассистентам взаимодействовать с VK через стандартизированный интерфейс
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ListPromptsRequestSchema,
-  GetPromptRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
+import { Server } from '@modelcontextprotocol/server';
 import { createRequire } from 'node:module';
 
 // Single source of truth for the version — announcing a hardcoded one drifts.
@@ -1081,18 +1075,22 @@ const prompts = [
 // SERVER SETUP
 // ============================================
 
+// One instance per connection: serveStdio decides the protocol era from the
+// opening exchange and pins an instance to it, so the server can no longer be
+// a module-level singleton. Everything inside is what it was.
+function buildServer() {
 const server = new Server(
   { name: 'vk-mcp-server', version: VERSION },
   { capabilities: { tools: {}, prompts: {} } }
 );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+server.setRequestHandler('tools/list', async () => ({ tools }));
 
-server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+server.setRequestHandler('prompts/list', async () => ({
   prompts: prompts.map(({ build, ...prompt }) => prompt),
 }));
 
-server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+server.setRequestHandler('prompts/get', async (request) => {
   const prompt = prompts.find((p) => p.name === request.params.name);
   if (!prompt) throw new Error(`Unknown prompt: ${request.params.name}`);
 
@@ -1112,7 +1110,7 @@ server.setRequestHandler(GetPromptRequestSchema, async (request) => {
   };
 });
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
@@ -1138,9 +1136,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+  return server;
+}
+
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  serveStdio(buildServer);
   console.error('VK MCP Server running on stdio');
   if (!VK_ACCESS_TOKEN) {
     console.error('No VK_ACCESS_TOKEN set — tools are listed but will fail when called.');

@@ -36,7 +36,8 @@
   "author": "bulatko",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/server": "^2.0.0-beta.5",
+    "@modelcontextprotocol/client": "^2.0.0-beta.5"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2",
