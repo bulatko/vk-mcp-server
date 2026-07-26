@@ -1,24 +1,29 @@
 # Getting a VK token
 
-VK will not let an application read your data until you tell it to. There are
-two ways to do that, and which one you want depends on whose data you are after.
-Both take about two minutes.
+**Short version: if you want the assistant to do anything beyond reading public
+pages, you need a community token.** It is three clicks, needs no app, and is
+the only kind VK still lets post, edit or upload.
 
-| You want to… | Use | Needs a VK app? |
+That is not a preference, it is what VK now permits. Three kinds of token exist
+and here is what each actually reaches, measured against the live API:
+
+| Token | How you get it | What it can do |
 |---|---|---|
-| Read and post in a community you manage | **Community token** | No |
-| Read your own feed, friends, groups; search; act as yourself | **User token** | Yes, your own |
+| **Community** | Community → Manage → API usage → Access tokens | Everything, as the community: read walls and members, post, edit, delete, comment, upload photos, read statistics |
+| **VK ID** (`vk2.a…`) | `npx vk-mcp-server --login` | Read public profiles, walls and community info. Nothing else — see below |
+| **Service key** | App page, on any app | The same three reads, and nothing else |
 
-If you only ever wanted "let the assistant run my community", take the first
-one. It is three clicks and there is no OAuth involved.
+**The catch with VK ID tokens.** `--login` walks VK's current sign-in flow and
+hands you a token, and it looks like the full user token older guides describe.
+It is not. VK issues these to *sign a person in*, and keeps most API methods
+closed to them: posting, photos, friends, feeds and statistics all answer
+`1051 — method is unavailable with current profile type`. No combination of
+scopes changes it, and the older flow that did grant full user tokens now
+answers `Security Error` for any app created since. If you have hit 1051 with a
+token that VK accepted and an account with every right, this is why.
 
-**Not the service key.** VK also hands out a *service key* on every app page,
-and it is the easiest of the three to obtain — which is why people reach for it
-first and conclude the server is broken. Measured against the live API, it
-opens three of the nineteen tools: `vk_users_get`, `vk_wall_get` and
-`vk_groups_get_by_id`. Everything else — photos, reactions, search, members,
-individual posts, statistics — refuses it with error 1051 or 28. Use it only if
-public profiles and walls are genuinely all you need.
+So `--login` is worth running only when public reads are genuinely all you
+need — and then the service key does the same with less ceremony.
 
 ---
 
@@ -47,12 +52,19 @@ newsfeed — that is expected, not a misconfiguration.
 
 ---
 
-## User token — 5 steps, your own app
+## VK ID token — 5 steps, your own app
 
-You need your own VK application. Not because this is unusual, but because a
-token is bound to the app that issued it: if you use somebody else's app ID and
-VK ever blocks that app, your token dies with it and nothing in the error says
-why. Two minutes now saves that.
+**Read this first:** what comes out of these five steps reads public profiles,
+walls and community info, and refuses everything else with error 1051. If you
+came here to let the assistant post, go back and make a community token — this
+flow cannot give you that, whatever scopes you tick.
+
+Still useful in one case: reading public data as a signed-in person, without an
+app of somebody else's between you and VK.
+
+You need your own VK application, because a token is bound to the app that
+issued it: use somebody else's app ID, and if VK ever blocks that app your token
+dies with it and nothing in the error says why.
 
 ### 1. Create the app
 
@@ -119,34 +131,43 @@ The token is fine. The requests are simply arriving from somewhere else.
 Ways around it:
 
 - **Use a community token.** Not tied to a browser session or an IP. This is
-  the simplest answer and covers most remote setups.
-- **Authorise from the server.** Forward the helper's port to your machine
-  (`ssh -L 8790:127.0.0.1:8790 user@server`), run `--login` on the server, and
-  open the printed URL locally — the callback then returns over the tunnel.
-  The token is still bound to your browser's IP, so this only helps when the
-  server and browser share an outbound address.
+  the simplest answer and covers most remote setups — and the only one that can
+  write, whatever else you try.
+- **Sign in from the server's own browser.** The binding follows the browser
+  that authorises, so run one *on the server*: open the printed URL in a
+  headless browser there and sign in by QR code, scanning it with your phone.
+  The IP that authorises is then the IP that calls the API, and the token
+  survives. Verified against the live API — no 1130 afterwards.
+- **Paste the redirect back.** With no browser on the server at all, open the
+  URL anywhere, let the callback page fail to load, and paste the address it
+  tried to open into `--login`. This delivers the code, but the token stays
+  bound to whichever browser signed in.
 - **Point the callback at a public URL.** Set `VK_LOGIN_REDIRECT` to an address
   that reaches the helper (through nginx, say) and register it as a trusted
-  redirect. This solves delivery of the code, not the IP binding.
+  redirect. Same caveat: it solves delivery, not the binding.
+
+Worth repeating: all of this concerns a VK ID token, which reads public data
+and refuses to write. If the goal is posting, only the first option applies.
 
 ---
 
 ## What the scopes mean
 
-`--login` asks for `wall,friends,groups,photos,stats,offline`. Each maps to
-tools you would otherwise find missing:
+A **community token** asks you to tick permissions when you create it, and they
+map directly to tools:
 
-| Scope | Unlocks |
+| Permission | Unlocks |
 |---|---|
-| `wall` | reading walls, posting, editing, deleting, commenting |
-| `friends` | `vk_friends_get` |
-| `groups` | your communities, joining |
+| `wall` | reading the wall, posting, editing, deleting, commenting |
 | `photos` | reading albums, uploading photos for posts |
-| `stats` | community statistics (you must be an admin) |
-| `offline` | a longer-lived token |
+| `manage` | community statistics |
 
-Asking for less is fine — the tools you did not authorise will simply return an
-error explaining which permission is missing.
+Tick `wall` and `photos` unless you know you need less.
+
+`--login` requests `wall,friends,groups,photos,stats,offline` as well, but on a
+VK ID token those scopes do not open the matching methods: VK grants the scope
+and still answers `1051`. Do not spend time adjusting them — the limit is the
+kind of token, not the permissions on it.
 
 ---
 
@@ -157,9 +178,9 @@ types you have, who it acts as, and what it can reach.
 
 | What you see | What it means |
 |---|---|
-| `Security Error` while authorising | The old implicit OAuth flow, which VK retired. Use `--login`, which uses the current VK ID flow. |
+| `Security Error` while authorising | The old OAuth flow, which VK no longer opens to apps created since. `--login` uses the current VK ID flow instead — but see what that token can do, above. |
 | `error 8: Application is blocked` | The app that issued the token is blocked. Create your own (step 1 above) and issue a fresh token. |
 | `error 5` with `subcode 1130` | IP binding — see [Remote installs](#remote-installs). |
 | `error 5` otherwise | The token expired or was revoked. Run `--login` again. |
-| `error 1051` or `error 28` | That is a service token; it cannot call user methods. Use a user or community token. |
+| `error 1051` or `error 28` | The token's kind is not allowed to call that method — a service key and a VK ID token both hit this. Only a community token reaches the rest. |
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |

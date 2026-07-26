@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "vk-mcp-server",
   "display_name": "VK",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Read and post to VK (VKontakte) — walls, communities, users, photos and stats.",
   "long_description": "Connects an AI assistant to the VK (VKontakte) social network. Read walls, search users and communities, inspect members and reactions, pull community statistics, and — when you ask it to — publish posts, comments and photos.\n\nRead-only tools are marked as such, so a client can run lookups freely while still asking before anything is posted, edited or deleted.\n\nNeeds a VK access token, which you can create from your VK account in about a minute.",
   "author": {
@@ -17,13 +17,22 @@
     "url": "https://github.com/bulatko/vk-mcp-server"
   },
   "license": "MIT",
-  "keywords": ["vk", "vkontakte", "social", "social-network", "posting", "analytics"],
+  "keywords": [
+    "vk",
+    "vkontakte",
+    "social",
+    "social-network",
+    "posting",
+    "analytics"
+  ],
   "server": {
     "type": "node",
     "entry_point": "src/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/src/index.js"],
+      "args": [
+        "${__dirname}/src/index.js"
+      ],
       "env": {
         "VK_ACCESS_TOKEN": "${user_config.vk_access_token}",
         "VK_TIMEOUT_MS": "${user_config.vk_timeout_ms}"
@@ -34,7 +43,7 @@
     "vk_access_token": {
       "type": "string",
       "title": "VK access token",
-      "description": "Managing a community? Open it → Manage → API usage → Access tokens → Create token, tick 'wall' and 'photos'. That token never expires and needs no app. Acting as yourself? Run `npx vk-mcp-server --login <APP_ID>` after creating your own Standalone app at https://vk.com/editapp?act=create. Step-by-step: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md",
+      "description": "Use a community token if you want the assistant to post: open a community you manage → Manage → API usage → Access tokens → Create token, ticking 'wall' and 'photos'. It never expires, needs no app, and is the only kind VK still lets write. For public reads only, `npx vk-mcp-server --login <APP_ID>` signs you in — but that token cannot post, upload or read friends and statistics (VK answers error 1051). Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md",
       "sensitive": true,
       "required": true
     },

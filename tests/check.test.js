@@ -80,7 +80,31 @@ describe('--check', () => {
 
     expect(stderr).toMatch(/Service token/);
     expect(stderr).toMatch(/read your friends/);
-    expect(stderr).toMatch(/--login/);
+    // It used to point at --login here, which leads to a VK ID token that
+    // cannot do more than the service key it was meant to replace.
+    expect(stderr).toMatch(/community token/i);
+  }, 20000);
+
+  it('names a VK ID token for what it is, before anything fails', async () => {
+    // vk2.a… tokens sign a person in and answer 1051 to most methods. Finding
+    // that out one tool at a time costs people an evening.
+    responses['users.get'] = { response: [{ id: 42, first_name: 'Test', last_name: 'User' }] };
+    const { stderr } = await runCheck('vk2.a.somethingsomething');
+
+    expect(stderr).toMatch(/VK ID token/);
+    expect(stderr).toMatch(/cannot post/i);
+    expect(stderr).toMatch(/community token/i);
+  }, 20000);
+
+  it('does not blame scopes when a VK ID token hits 1051', async () => {
+    // The old advice — "re-issue with the missing scopes" — sends people round
+    // a loop that cannot end: no scope opens these methods to this token kind.
+    responses['users.get'] = { response: [{ id: 42, first_name: 'Test', last_name: 'User' }] };
+    responses['friends.get'] = { error: { error_code: 1051, error_msg: 'unavailable with current profile type' } };
+    const { stderr } = await runCheck('vk2.a.somethingsomething');
+
+    expect(stderr).toMatch(/not about scopes/i);
+    expect(stderr).not.toMatch(/Re-issue the token with the missing scopes/);
   }, 20000);
 
   it('probes the reads that a weak token silently loses', async () => {

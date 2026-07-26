@@ -52,8 +52,18 @@ export async function runCheck() {
   let kind = 'unknown';
   if (Array.isArray(self.response) && self.response.length) {
     const me = self.response[0];
-    kind = 'user';
-    console.error(`${OK} User token — acting as ${me.first_name} ${me.last_name} (id ${me.id})`);
+    // A vk2.a… token comes from VK ID, which issues it to sign you in. It reads
+    // public data and answers 1051 to most of the rest, and no scope changes
+    // that — VK retired the flow that produced full user tokens. Saying so here
+    // saves discovering it one tool at a time.
+    kind = token.startsWith('vk2.') ? 'vkid' : 'user';
+    const label = kind === 'vkid' ? 'VK ID token' : 'User token';
+    console.error(`${OK} ${label} — acting as ${me.first_name} ${me.last_name} (id ${me.id})`);
+    if (kind === 'vkid') {
+      console.error('   Signs you in and reads public data. It cannot post, edit or upload:');
+      console.error('   VK closed those methods to this kind of token. For writing, use a');
+      console.error('   community token (Manage → API usage → Access tokens).');
+    }
   } else {
     // A community token answers users.get with an empty array; groups.getById
     // with no arguments then names the community it belongs to.
@@ -114,10 +124,14 @@ export async function runCheck() {
       console.error(`  error ${b.code}: ${b.msg}`);
     }
     if (kind === 'service') {
-      console.error('\n  A service token is the weakest of the three: it reaches three of the');
-      console.error('  nineteen tools — public profiles, walls and community info — and nothing');
-      console.error('  else. If you manage a community, a community token takes three clicks and');
-      console.error('  covers far more; otherwise run `npx vk-mcp-server --login <APP_ID>`.');
+      console.error('\n  A service key reaches three of the nineteen tools — public profiles,');
+      console.error('  walls and community info — and nothing else. A community token takes');
+      console.error('  three clicks and covers far more, including posting.');
+    } else if (kind === 'vkid') {
+      console.error('\n  Error 1051 here is not about scopes. VK ID issues this token to sign');
+      console.error('  you in, and keeps most API methods closed to it; the flow that granted');
+      console.error('  full user tokens is retired. Nothing you add to the request will open');
+      console.error('  them. A community token is the way to read and write as a community.');
     } else if (kind === 'community') {
       console.error('\n  Community tokens act as the community, so they cannot read a person\'s');
       console.error('  friends or newsfeed. That is expected, not a misconfiguration.');

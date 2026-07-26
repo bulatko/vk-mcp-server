@@ -57,16 +57,23 @@ const ERROR_HINTS = {
   18: 'That user is deleted or banned.',
   27: 'Community authorisation failed. Create a token under Manage → API usage → Access tokens in the community you want to act as.',
   28:
-    'This method needs a user or community token; a service token cannot call it. ' +
-    'Run `npx vk-mcp-server --login <APP_ID>` for a user token, or create a community token under Manage → API usage → Access tokens.',
+    'This method needs a community token; neither a service key nor a VK ID token can call it. ' +
+    'Create one in the community you want to act as: Manage → API usage → Access tokens, ticking wall and photos.',
   29: 'The per-method quota for this token is used up. Wait, or spread the calls out.',
   100: 'VK rejected one of the parameters. Check IDs and required arguments — community IDs are positive here, wall owner IDs are negative.',
   113: 'No such user ID.',
   203: 'Access to that community is denied for this token.',
   214: 'Posting to that wall is denied — the token needs the wall scope and the account needs the right to post there.',
+  // The most misleading code VK returns. It does not mean the account is wrong
+  // or the scope is missing: it means the token's issuer is not allowed to call
+  // this method at all. Both kinds we can obtain hit it — a service key, and a
+  // VK ID token from `--login`, which VK issues for signing in rather than for
+  // the API. There is no scope to add and no flag to flip; the answer is a
+  // community token, which is the one kind that still reaches these methods.
   1051:
-    'A service token cannot call this method. ' +
-    'Use a user token (`npx vk-mcp-server --login <APP_ID>`) or a community token, depending on whose data you are after.',
+    'This method is closed to the kind of token that made the call. ' +
+    'A service key only reads public data, and a VK ID token (vk2.a…, what `--login` returns) signs you in but cannot call most API methods — VK retired the flow that issued full user tokens. ' +
+    'Use a community token instead: open a community you manage → Manage → API usage → Access tokens → Create token, ticking wall and photos. It posts, edits and uploads as that community.',
 };
 
 /**

@@ -63,11 +63,11 @@
   audience snapshot, community search
 - **Resilient**: request timeouts, automatic backoff when VK rate-limits, and
   clear messages for captchas and HTTP failures
-- **Guided setup**: `npx vk-mcp-server --login` walks the VK ID flow and hands
-  you a token — no OAuth wrangling
-- **Self-diagnosing**: `--check` reports which of the three VK token types you
-  have and which tools it can reach, and every VK error carries the fix
-- **Tested**: 82 tests driving the real server over the MCP protocol
+- **Honest about tokens**: VK has three kinds and they differ enormously in
+  reach. `--check` names which one you hold and probes what it can actually do,
+  `--login` walks the VK ID flow for the reading kind, and every VK error
+  carries the fix rather than the code alone
+- **Tested**: 84 tests driving the real server over the MCP protocol
 
 ## Quick Start
 
@@ -106,21 +106,27 @@ io.github.bulatko/vk
 
 ## Getting VK Access Token
 
-Two minutes, and you never touch it again. Pick whichever fits:
+**For anything beyond reading public pages, you need a community token.** Open
+a community you manage → **Manage** → **API usage** → **Access tokens** →
+**Create token**, ticking `wall` and `photos`. Three clicks, no app, never
+expires, tied to no browser or IP — and it is the only kind VK still lets post,
+edit or upload.
 
-**Managing a community?** No app needed — open the community → **Manage** →
-**API usage** → **Access tokens** → **Create token**, tick `wall` and `photos`.
-Community tokens do not expire and are not tied to a browser or an IP.
-
-**Acting as yourself?** Create your own Standalone app at
-[vk.com/editapp?act=create](https://vk.com/editapp?act=create), add
-`http://127.0.0.1:8790/callback` to its trusted redirect URIs, then:
+For public reads alone, either of these does:
 
 ```bash
-npx vk-mcp-server --login <YOUR_APP_ID>
+npx vk-mcp-server --login <YOUR_APP_ID>   # sign in as yourself
 ```
 
-It opens VK, you approve, and it prints the token.
+…or the service key from any app page.
+
+**Worth knowing before you spend an evening on it:** `--login` returns a VK ID
+token (`vk2.a…`), which VK issues for signing in rather than for the API. It
+reads public profiles, walls and community info; posting, photos, friends,
+feeds and statistics all answer `error 1051`, whatever scopes you request. The
+older flow that granted full user tokens now refuses newly created apps
+outright. `npx vk-mcp-server --check` names which kind you hold and what it
+reaches.
 
 Use your own app rather than an App ID from somewhere else: a token dies with
 the app that issued it, and the error gives no hint that this is what happened.

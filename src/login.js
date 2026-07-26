@@ -5,6 +5,13 @@
  * (response_type=token) now answers "Security Error" for newly created apps —
  * VK moved to VK ID, which is OAuth 2.1 with PKCE. This walks that flow with a
  * throwaway local redirect, so nothing has to be pasted out of an address bar.
+ *
+ * What it yields is a VK ID token (vk2.a…), and that is worth saying plainly:
+ * VK issues those to sign a person in, not to drive the API. It reads public
+ * profiles, walls and community info, and answers 1051 to the rest — posting,
+ * photos, friends, statistics — no matter which scopes were requested. The
+ * flow that granted full user tokens is gone, so for anything beyond reading
+ * the answer is a community token, created in the community's own settings.
  */
 
 import { createServer } from 'node:http';
@@ -37,6 +44,43 @@ function openBrowser(url) {
   } catch {
     // Headless box or no opener — the URL is printed either way.
   }
+}
+
+/**
+ * Reads the redirect back from stdin, for when the browser is on another
+ * machine entirely: VK sends it to a loopback address that belongs to the
+ * laptop, the page fails to load, and the whole answer is sitting in the
+ * address bar. Pasting it here beats standing up a public redirect.
+ */
+function waitForPaste(expectedState) {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    const onData = (chunk) => {
+      buffer += chunk;
+      const line = buffer.split('\n').find((l) => l.includes('code='));
+      if (!line) return;
+
+      process.stdin.off('data', onData);
+      process.stdin.pause();
+
+      // Accept the whole redirect URL or just its query string: everything
+      // from the first '?' is the query, and a bare query has no '?' to cut.
+      const cut = line.indexOf('?');
+      const params = new URLSearchParams(cut === -1 ? line.trim() : line.slice(cut + 1).trim());
+      if (!params.has('code')) {
+        reject(new Error('could not find code= in what was pasted'));
+        return;
+      }
+      if (params.get('state') !== expectedState) {
+        reject(new Error('state mismatch: that redirect belongs to a different login attempt'));
+        return;
+      }
+      resolve({ code: params.get('code'), deviceId: params.get('device_id') });
+    };
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', onData);
+    process.stdin.resume();
+  });
 }
 
 /** Waits for VK to redirect back, and answers the browser while it does. */
@@ -148,12 +192,19 @@ Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md`)
   }
   console.error('Opening VK in your browser. If nothing opens, visit:\n');
   console.error(`${authorizeUrl}\n`);
+  console.error('If the browser is on another machine, the page it lands on will fail to');
+  console.error('load — that is expected. Copy the whole address it tried to open and paste');
+  console.error('it here, then press Enter.\n');
   openBrowser(authorizeUrl.toString());
 
   let code;
   let deviceId;
   try {
-    ({ code, deviceId } = await waitForCallback(server, state));
+    // Whichever arrives first: the redirect itself, or it pasted by hand.
+    ({ code, deviceId } = await Promise.race([
+      waitForCallback(server, state),
+      waitForPaste(state),
+    ]));
   } finally {
     server.close();
   }
@@ -186,5 +237,19 @@ Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md`)
       `\nExpires in ${data.expires_in}s. Request the offline scope for a token that does not expire.`
     );
   }
+
+  // Said after the token rather than before, so it is read by someone about to
+  // use it: this is what VK hands out now, and it does less than people expect.
+  if (String(data.access_token).startsWith('vk2.')) {
+    console.error('\nWhat this token can do: read public profiles, walls and community info.');
+    console.error('What it cannot: post, edit, upload photos, or read friends, feeds and');
+    console.error('statistics — VK ID issues this token to sign you in and keeps those');
+    console.error('methods closed to it (error 1051). No scope changes that; the flow that');
+    console.error('granted full user tokens is retired.');
+    console.error('\nTo write, use a community token instead: open a community you manage →');
+    console.error('Manage → API usage → Access tokens → Create token, ticking wall and photos.');
+    console.error('It acts as the community, never expires, and is tied to no browser or IP.');
+  }
+
   console.error('\nClaude Desktop users: paste it into the extension settings field instead.');
 }

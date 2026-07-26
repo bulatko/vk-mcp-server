@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.1
+
+- The setup guide no longer promises something VK stopped giving. `--login`
+  returns a VK ID token (`vk2.a…`), which VK issues to sign a person in and
+  keeps most API methods closed to — posting, photos, friends, feeds and
+  statistics all answer `1051`, whatever scopes are requested, and the older
+  flow that granted full user tokens refuses newly created apps outright. That
+  is now said up front, in the README, in the guide, and by `--login` itself
+  once it hands the token over
+- `--check` names a VK ID token on sight and explains what it reaches, instead
+  of leaving it to be discovered one tool at a time
+- The hint for error 1051 pointed at a user token as the fix, which is the one
+  thing that cannot work. It now points at a community token — the only kind VK
+  still lets write
+- `--login` accepts the redirect pasted by hand, for a server whose browser
+  lives on another machine
+
 ## 0.6.0
 
 Breaking: `group_id` is now a string in every tool that takes one. It used to
