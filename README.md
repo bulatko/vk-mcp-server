@@ -33,8 +33,13 @@
 </p>
 
 <p align="center">
-  <em>Asking for a community's wall on a host that supports MCP Apps. The model
-  gets the same structured data either way — this is what the person sees.</em>
+  <img src="docs/img/entity-cards.jpg" width="720" alt="A community and a profile rendered as cards: banner, avatar, size and description on one; avatar, location and following on the other" />
+</p>
+
+<p align="center">
+  <em>Walls, communities and profiles on a host that supports MCP Apps. The
+  model gets the same structured data either way — this is what the person
+  sees.</em>
 </p>
 
 ---
