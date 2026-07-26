@@ -78,6 +78,30 @@
         border-radius: 6px;
         display: block;
       }
+      /*
+       * Most posts carry exactly one picture, and cropping it into a thumbnail
+       * grid cell wastes the card: a vertical clip loses its top and bottom to
+       * a 4:3 box. Alone, it gets the width and keeps its own proportions.
+       */
+      .photos.single {
+        display: block;
+        text-align: center;
+      }
+      .photos.single img {
+        width: auto;
+        max-width: 100%;
+        max-height: 340px;
+        aspect-ratio: auto;
+        object-fit: contain;
+      }
+      /*
+       * Inline-block so the frame hugs the picture: stretched to the row width
+       * it would park the duration badge in the empty space beside a vertical
+       * clip rather than on it.
+       */
+      .photos.single .frame {
+        display: inline-block;
+      }
       /* Videos are indistinguishable from stills without it. */
       .photos .play {
         position: absolute;
@@ -149,10 +173,18 @@
         return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
       }
 
-      const widest = (sizes) =>
-        Array.isArray(sizes) && sizes.length
-          ? sizes.reduce((best, size) => (size.width > (best?.width ?? 0) ? size : best), null)?.url ?? null
-          : null;
+      // The card is never wider than a chat column, so the 2560px original is
+      // megabytes spent to be scaled down. Take the smallest size that still
+      // covers a retina render, and fall back to the largest there is.
+      const ENOUGH = 1024;
+      function bestSize(sizes) {
+        if (!Array.isArray(sizes) || !sizes.length) return null;
+        const sufficient = sizes.filter((s) => s.width >= ENOUGH);
+        const chosen = sufficient.length
+          ? sufficient.reduce((best, s) => (s.width < best.width ? s : best))
+          : sizes.reduce((best, s) => (s.width > best.width ? s : best));
+        return chosen?.url ?? null;
+      }
 
       /**
        * A wall post carries a photo, a video, or neither. Videos matter as much
@@ -161,11 +193,11 @@
        */
       function previewOf(attachment) {
         if (attachment.type === 'photo') {
-          const url = widest(attachment.photo?.sizes);
+          const url = bestSize(attachment.photo?.sizes);
           return url ? { url, label: null } : null;
         }
         if (attachment.type === 'video') {
-          const url = widest(attachment.video?.image);
+          const url = bestSize(attachment.video?.image);
           if (!url) return null;
           const seconds = attachment.video?.duration;
           const label = typeof seconds === 'number'
@@ -199,7 +231,7 @@
         const previews = (post.attachments || []).map(previewOf).filter(Boolean);
 
         if (previews.length) {
-          const grid = el('div', 'photos');
+          const grid = el('div', previews.length === 1 ? 'photos single' : 'photos');
           for (const preview of previews) {
             const frame = el('div', 'frame');
             const img = el('img');

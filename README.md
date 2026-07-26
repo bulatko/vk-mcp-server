@@ -28,6 +28,17 @@
 
 ---
 
+<p align="center">
+  <img src="docs/img/wall-card.jpg" width="420" alt="A VK wall rendered as a card in the chat: posts with their photos, clip previews and counters" />
+</p>
+
+<p align="center">
+  <em>Asking for a community's wall on a host that supports MCP Apps. The model
+  gets the same structured data either way — this is what the person sees.</em>
+</p>
+
+---
+
 ## Features
 
 - **19 tools** across users, walls, communities, photos, likes and statistics
