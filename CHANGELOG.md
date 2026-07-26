@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0
+
+Breaking: `group_id` is now a string in every tool that takes one. It used to
+be a number in three and a string in a fourth, so the model had to guess per
+tool — and a short name like `apiclub`, which VK accepts everywhere, only
+type-checked against one of them. Numeric IDs keep working; they travel as
+text either way, since that is what an HTTP form carries.
+
+- Communities and profiles get cards too. `vk_groups_get_by_id` renders the
+  banner, avatar, size and description; `vk_users_get` renders avatar,
+  location, following and status, and says plainly when a profile is private
+  or deactivated rather than drawing an empty box
+- One resource now serves all three shapes and works out which it was handed,
+  so the card moved from `ui://vk/wall.html` to `ui://vk/card.html`
+- Every `group_id` description says the same thing: an ID or a short name,
+  positive, and the minus sign belongs to `owner_id` on a wall, not here
+
 ## 0.5.1
 
 - The card handles a single attachment properly: it takes the width and keeps

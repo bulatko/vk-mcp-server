@@ -299,7 +299,7 @@ const vk = new VKClient(VK_ACCESS_TOKEN);
  * nothing where it is unsupported.
  */
 const UI_MIME_TYPE = 'text/html;profile=mcp-app';
-const WALL_UI_URI = 'ui://vk/wall.html';
+const CARD_UI_URI = 'ui://vk/card.html';
 
 const UI_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ui');
 
@@ -308,18 +308,19 @@ const UI_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ui');
  * policy names the families rather than individual origins. Nothing is allowed
  * to phone home: the card renders what the tool already returned.
  */
-const WALL_UI_CSP = {
+const CARD_UI_CSP = {
   resourceDomains: ['https://*.userapi.com', 'https://*.vk.com', 'https://*.vk.me'],
 };
 
 const UI_RESOURCES = [
   {
-    uri: WALL_UI_URI,
-    name: 'VK wall card',
-    description: 'Renders the posts returned by vk_wall_get, with photos, views and reactions.',
+    uri: CARD_UI_URI,
+    name: 'VK card',
+    description:
+      'Renders what a tool returned: wall posts with their photos and counters, communities with their banner and size, or profiles.',
     mimeType: UI_MIME_TYPE,
-    file: 'wall.html',
-    _meta: { ui: { csp: WALL_UI_CSP } },
+    file: 'card.html',
+    _meta: { ui: { csp: CARD_UI_CSP } },
   },
 ];
 
@@ -337,6 +338,7 @@ const tools = [
   {
     name: 'vk_users_get',
     title: 'Get user profiles',
+    _meta: uiToolMeta(CARD_UI_URI),
     description: 'Look up VK users by numeric ID or short name (e.g. durov). Use this to resolve a name to an ID before calling other tools, or to check whether a profile is closed.',
     inputSchema: {
       type: 'object',
@@ -370,7 +372,7 @@ const tools = [
     name: 'vk_wall_get',
     title: 'Read a wall',
     description: 'Read posts from a user or community wall, newest first. Pass domain for a short address (durov) or owner_id for a numeric one — negative for a community, positive for a person. Each post carries its likes, reposts, comments and views.',
-    _meta: uiToolMeta(WALL_UI_URI),
+    _meta: uiToolMeta(CARD_UI_URI),
     inputSchema: {
       type: 'object',
       properties: {
@@ -461,7 +463,7 @@ const tools = [
     inputSchema: {
       type: 'object',
       properties: {
-        group_id: { type: 'number', description: 'Community ID (positive number, without minus sign)' },
+        group_id: { type: 'string', description: 'Community ID or its short name (e.g. apiclub). Positive and without the minus sign — the minus belongs to owner_id on a wall, not here.' },
         image: { type: 'string', description: 'Image URL (http/https) or absolute local file path' },
         caption: { type: 'string', description: 'Photo caption' },
       },
@@ -495,7 +497,7 @@ const tools = [
     inputSchema: {
       type: 'object',
       properties: {
-        group_id: { type: 'string', description: 'Community ID (positive, no minus sign) or its short name, e.g. apiclub.' },
+        group_id: { type: 'string', description: 'Community ID or its short name (e.g. apiclub). Positive and without the minus sign — the minus belongs to owner_id on a wall, not here.' },
         count: { type: 'number', description: 'Number of members to return (max 1000)' },
         offset: { type: 'number', description: 'Offset for pagination' },
         fields: { type: 'string', description: 'Additional profile fields to return (e.g. photo_200,online,sex,city)' },
@@ -512,7 +514,7 @@ const tools = [
     inputSchema: {
       type: 'object',
       properties: {
-        group_id: { type: 'number', description: 'Community ID (positive number, without minus sign)' },
+        group_id: { type: 'string', description: 'Community ID or its short name (e.g. apiclub). Positive and without the minus sign — the minus belongs to owner_id on a wall, not here.' },
         not_sure: { type: 'number', description: 'For events only: 1 — "maybe attending", 0 — confirmed', enum: [0, 1] },
       },
       required: ['group_id'],
@@ -535,11 +537,12 @@ const tools = [
   {
     name: 'vk_groups_get_by_id',
     title: 'Get community info',
+    _meta: uiToolMeta(CARD_UI_URI),
     description: 'Look up communities by numeric ID or short name (e.g. apiclub). Use it to resolve a name to an ID, or to read the description, member count and type before deciding what to do with it.',
     inputSchema: {
       type: 'object',
       properties: {
-        group_ids: { type: 'string', description: 'Comma-separated group IDs' },
+        group_ids: { type: 'string', description: 'Comma-separated community IDs or short names (e.g. apiclub,vk). Positive and without the minus sign.' },
         fields: { type: 'string', description: 'Community fields' },
       },
     },
@@ -578,7 +581,7 @@ const tools = [
     inputSchema: {
       type: 'object',
       properties: {
-        group_id: { type: 'number', description: 'Community ID, positive and without the minus sign.' },
+        group_id: { type: 'string', description: 'Community ID or its short name (e.g. apiclub). Positive and without the minus sign — the minus belongs to owner_id on a wall, not here.' },
         interval: { type: 'string', enum: ['day', 'week', 'month', 'year', 'all'] },
         intervals_count: { type: 'number', description: 'Number of intervals' },
       },

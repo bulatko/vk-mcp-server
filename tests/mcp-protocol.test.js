@@ -119,6 +119,18 @@ describe('tools/list', () => {
     });
   });
 
+  it('gives a community id the same type everywhere', () => {
+    // It used to be a number in three tools and a string in a fourth, so the
+    // model had to guess per tool — and a short name like "apiclub", which VK
+    // accepts, only type-checked against one of them.
+    const types = tools
+      .map((t) => t.inputSchema.properties?.group_id)
+      .filter(Boolean)
+      .map((p) => p.type);
+    expect(types.length).toBeGreaterThan(1);
+    expect(new Set(types)).toEqual(new Set(['string']));
+  });
+
   it('declares required fields that actually exist in properties', () => {
     tools.forEach((t) => {
       (t.inputSchema.required || []).forEach((field) => {
@@ -254,23 +266,25 @@ describe('app UI resources', () => {
     expect(client.getServerCapabilities()).toHaveProperty('resources');
   });
 
-  it('lists the wall card as an app resource', async () => {
+  it('lists the card as an app resource', async () => {
     const { resources } = await client.listResources();
-    const card = resources.find((r) => r.uri === 'ui://vk/wall.html');
+    const card = resources.find((r) => r.uri === 'ui://vk/card.html');
     expect(card).toBeDefined();
     // The profile parameter is what marks it as an MCP App rather than a page.
     expect(card.mimeType).toBe('text/html;profile=mcp-app');
   });
 
-  it('points vk_wall_get at the card in both metadata spellings', () => {
+  it('points every tool with a card at it, in both metadata spellings', () => {
     // Current hosts read _meta.ui.resourceUri; earlier ones read the flat key.
-    const wall = tools.find((t) => t.name === 'vk_wall_get');
-    expect(wall._meta.ui.resourceUri).toBe('ui://vk/wall.html');
-    expect(wall._meta['ui/resourceUri']).toBe('ui://vk/wall.html');
+    ['vk_wall_get', 'vk_groups_get_by_id', 'vk_users_get'].forEach((name) => {
+      const tool = tools.find((t) => t.name === name);
+      expect(tool._meta.ui.resourceUri).toBe('ui://vk/card.html');
+      expect(tool._meta['ui/resourceUri']).toBe('ui://vk/card.html');
+    });
   });
 
   it('serves HTML that renders the tool result', async () => {
-    const { contents } = await client.readResource({ uri: 'ui://vk/wall.html' });
+    const { contents } = await client.readResource({ uri: 'ui://vk/card.html' });
     expect(contents[0].mimeType).toBe('text/html;profile=mcp-app');
     expect(contents[0].text).toMatch(/<!doctype html>/i);
     // Without the handshake and the result notification the card stays blank.
@@ -278,10 +292,19 @@ describe('app UI resources', () => {
     expect(contents[0].text).toContain('ui/notifications/tool-result');
   });
 
+  it('renders all three shapes from the one resource', async () => {
+    // One resource serves three tools, so it has to tell walls, communities
+    // and profiles apart from the payload alone.
+    const { contents } = await client.readResource({ uri: 'ui://vk/card.html' });
+    expect(contents[0].text).toContain('renderPost');
+    expect(contents[0].text).toContain('renderCommunity');
+    expect(contents[0].text).toContain('renderProfile');
+  });
+
   it('declares the origins VK serves photos from', async () => {
     // Hosts block every origin by default, which would leave the card
     // text-only against a policy nobody wrote down.
-    const { contents } = await client.readResource({ uri: 'ui://vk/wall.html' });
+    const { contents } = await client.readResource({ uri: 'ui://vk/card.html' });
     expect(contents[0]._meta.ui.csp.resourceDomains).toEqual(
       expect.arrayContaining(['https://*.userapi.com'])
     );

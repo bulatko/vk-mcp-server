@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>VK wall</title>
+    <title>VK card</title>
     <style>
       /*
        * The host hands its own palette down as CSS variables; these are the
@@ -125,6 +125,66 @@
       }
 
       .empty { color: var(--vk-muted); padding: 24px 0; text-align: center; }
+
+      /* Communities and profiles: a banner, an avatar over it, then the facts. */
+      .entity { overflow: hidden; }
+      .entity .cover {
+        margin: -12px -12px 0;
+        aspect-ratio: 32 / 9;
+        object-fit: cover;
+        width: calc(100% + 24px);
+        display: block;
+      }
+      .entity .head-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      /* Pulled up over the banner when there is one, flush when there is not. */
+      .entity .cover ~ .head-row { margin-top: -28px; }
+      .entity .avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex: none;
+        border: 2px solid var(--vk-card);
+        background: var(--vk-card);
+      }
+      .entity .who { min-width: 0; }
+      /* Only when a banner is present does the row need clearing for it. */
+      .entity .cover ~ .head-row .who { padding-top: 28px; }
+      .entity .name {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      /* A checkmark that survives a host with no emoji font. */
+      .entity .tick {
+        color: var(--vk-accent);
+        font-size: 12px;
+        border: 1px solid currentColor;
+        border-radius: 50%;
+        width: 14px;
+        height: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        flex: none;
+      }
+      .entity .sub { color: var(--vk-muted); font-size: 12px; }
+      .entity .facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        margin-top: 10px;
+        color: var(--vk-muted);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .entity .about { margin-top: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
       .more-pages {
         color: var(--vk-muted);
@@ -268,27 +328,163 @@
         return card;
       }
 
+      /** Adds a fact only when VK actually returned it — profiles vary wildly. */
+      function facts(pairs) {
+        const row = el('div', 'facts');
+        for (const [label, value] of pairs) {
+          if (value === undefined || value === null || value === '') continue;
+          row.append(el('span', null, typeof value === 'number' ? `${fmt.format(value)} ${label}` : value));
+        }
+        return row.childElementCount ? row : null;
+      }
+
+      function avatarFrom(url) {
+        if (!url) return null;
+        const img = el('img', 'avatar');
+        img.src = url;
+        img.alt = '';
+        img.addEventListener('error', () => img.remove());
+        return img;
+      }
+
+      function coverInto(card, url) {
+        if (!url) return;
+        const img = el('img', 'cover');
+        img.src = url;
+        img.alt = '';
+        img.addEventListener('error', () => img.remove());
+        card.append(img);
+      }
+
+      function nameLine(text, verified) {
+        const line = el('div', 'name', text);
+        // 1 means VK verified the account; anything else is an ordinary one.
+        if (verified === 1) {
+          const tick = el('span', 'tick', '✓');
+          tick.title = 'Verified by VK';
+          line.append(tick);
+        }
+        return line;
+      }
+
+      function renderCommunity(group) {
+        const card = el('div', 'post entity');
+        coverInto(card, bestSize(group.cover?.images));
+
+        const row = el('div', 'head-row');
+        const avatar = avatarFrom(group.photo_200 || group.photo_100);
+        if (avatar) row.append(avatar);
+
+        const who = el('div', 'who');
+        who.append(nameLine(group.name || `Community ${group.id}`, group.verified));
+        const handle = group.screen_name ? `@${group.screen_name}` : `id ${group.id}`;
+        who.append(el('div', 'sub', group.activity ? `${handle} · ${group.activity}` : handle));
+        row.append(who);
+        card.append(row);
+
+        const row2 = facts([
+          ['members', group.members_count],
+          [null, group.status],
+          [null, group.site],
+        ].map(([l, v]) => [l ?? '', v]));
+        if (row2) card.append(row2);
+
+        if (group.description) {
+          const about = el('div', 'about text', group.description);
+          if (group.description.length > 400) {
+            about.classList.add('clamped');
+            const more = el('button', 'more', 'Show more');
+            more.addEventListener('click', () => {
+              about.classList.remove('clamped');
+              more.remove();
+            });
+            card.append(about, more);
+          } else {
+            card.append(about);
+          }
+        }
+
+        return card;
+      }
+
+      function renderProfile(user) {
+        const card = el('div', 'post entity');
+
+        const row = el('div', 'head-row');
+        const avatar = avatarFrom(user.photo_200 || user.photo_100);
+        if (avatar) row.append(avatar);
+
+        const who = el('div', 'who');
+        who.append(nameLine(`${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || `id ${user.id}`, user.verified));
+
+        const place = [user.city?.title, user.country?.title].filter(Boolean).join(', ');
+        const handle = user.screen_name ? `@${user.screen_name}` : `id ${user.id}`;
+        who.append(el('div', 'sub', place ? `${handle} · ${place}` : handle));
+        row.append(who);
+        card.append(row);
+
+        // A deactivated or private profile returns almost nothing; say which,
+        // instead of drawing an empty card.
+        if (user.deactivated) {
+          card.append(el('div', 'about', `This profile is ${user.deactivated}.`));
+          return card;
+        }
+
+        const row2 = facts([
+          ['followers', user.followers_count],
+          ['friends', user.counters?.friends],
+          [null, user.occupation?.name],
+          [null, user.online === 1 ? 'online' : null],
+        ].map(([l, v]) => [l ?? '', v]));
+        if (row2) card.append(row2);
+
+        if (user.status) card.append(el('div', 'about', user.status));
+        if (user.is_closed && !user.can_access_closed) {
+          card.append(el('div', 'sub', 'Private profile — most fields are hidden from this token.'));
+        }
+
+        return card;
+      }
+
+      /**
+       * One resource serves every tool that has a card, so it works out what it
+       * was handed. VK's shapes are distinct enough to tell apart: communities
+       * come under `groups`, posts carry a date, profiles carry a first name.
+       */
       function render(result) {
         const data = result?.structuredContent;
-        const posts = Array.isArray(data?.items) ? data.items : [];
         const list = document.getElementById('posts');
+        const countEl = document.getElementById('count');
+        const pagesEl = document.getElementById('pages');
         list.replaceChildren();
+        countEl.textContent = '';
+        pagesEl.textContent = '';
 
-        if (!posts.length) {
-          list.append(el('div', 'empty', 'No posts came back.'));
-          document.getElementById('count').textContent = '';
-          document.getElementById('pages').textContent = '';
+        const groups = Array.isArray(data?.groups) ? data.groups : null;
+        const items = Array.isArray(data?.items) ? data.items : [];
+
+        if (groups) {
+          document.getElementById('title').textContent = groups.length === 1 ? 'VK community' : 'VK communities';
+          if (!groups.length) return list.append(el('div', 'empty', 'No communities came back.'));
+          for (const group of groups) list.append(renderCommunity(group));
           return;
         }
 
-        document.getElementById('count').textContent =
-          typeof data.count === 'number' ? `${fmt.format(data.count)} posts` : '';
+        if (items.length && items[0].first_name !== undefined) {
+          document.getElementById('title').textContent = items.length === 1 ? 'VK profile' : 'VK profiles';
+          for (const user of items) list.append(renderProfile(user));
+          return;
+        }
 
-        for (const post of posts) list.append(renderPost(post));
+        document.getElementById('title').textContent = 'VK wall';
+        if (!items.length) return list.append(el('div', 'empty', 'Nothing came back.'));
+
+        countEl.textContent = typeof data.count === 'number' ? `${fmt.format(data.count)} posts` : '';
+        for (const post of items) list.append(renderPost(post));
 
         const next = data.pagination?.next_offset;
-        document.getElementById('pages').textContent =
-          typeof next === 'number' ? `Showing ${posts.length} — ask for more from offset ${next}` : '';
+        pagesEl.textContent =
+          typeof next === 'number' ? `Showing ${items.length} — ask for more from offset ${next}` : '';
       }
 
       window.addEventListener('message', (event) => {
@@ -303,7 +499,7 @@
 
       // Handshake: initialize, then announce we are ready for notifications.
       request('ui/initialize', {
-        appInfo: { name: 'VK wall', version: '1.0.0' },
+        appInfo: { name: 'VK card', version: '1.0.0' },
         appCapabilities: {},
         protocolVersion: PROTOCOL_VERSION,
       });
