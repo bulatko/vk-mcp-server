@@ -269,6 +269,7 @@ class VKClient {
     formData.append(fieldName, blob, filename);
 
     const resp = await fetch(uploadUrl, { method: 'POST', body: formData });
+    if (!resp.ok) throw new Error(`Story upload failed: ${resp.status} ${resp.statusText}`);
     return resp.json();
   }
 }
