@@ -235,6 +235,42 @@ class VKClient {
 
     return data;
   }
+
+  // Stories
+  storiesGetPhotoUploadServer(params) { return this.call('stories.getPhotoUploadServer', params); }
+  storiesGetVideoUploadServer(params) { return this.call('stories.getVideoUploadServer', params); }
+  storiesSave(params) { return this.call('stories.save', params); }
+
+  async uploadStoryFile(uploadUrl, fileSource, fieldName = 'file') {
+    let blob;
+    let filename;
+
+    if (fileSource.startsWith('http://') || fileSource.startsWith('https://')) {
+      const resp = await fetch(fileSource);
+      if (!resp.ok) throw new Error(`Failed to download file: ${resp.status}`);
+      const contentType = resp.headers.get('content-type') || 'application/octet-stream';
+      const ext = contentType.includes('png') ? 'png'
+        : contentType.includes('gif') ? 'gif'
+        : contentType.includes('mp4') ? 'mp4'
+        : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg'
+        : fileSource.split('.').pop() || 'bin';
+      filename = `story.${ext}`;
+      blob = await resp.blob();
+    } else {
+      const { readFile } = await import('node:fs/promises');
+      const buffer = await readFile(fileSource);
+      const ext = fileSource.split('.').pop() || 'bin';
+      filename = `story.${ext}`;
+      const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', mp4: 'video/mp4' };
+      blob = new Blob([buffer], { type: mimeMap[ext.toLowerCase()] || 'application/octet-stream' });
+    }
+
+    const formData = new FormData();
+    formData.append(fieldName, blob, filename);
+
+    const resp = await fetch(uploadUrl, { method: 'POST', body: formData });
+    return resp.json();
+  }
 }
 
 // ============================================
@@ -478,6 +514,38 @@ const tools = [
     },
   },
   {
+    name: 'vk_stories_post_photo',
+    title: 'Publish a photo story',
+    description: 'Publish a photo story on VK (three-step upload: get upload server, upload the photo, save). Posts a personal story, or a community one when group_id is set.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        image: { type: 'string', description: 'Image URL (http/https) or absolute local file path' },
+        group_id: { type: 'string', description: 'Community ID or its short name (e.g. apiclub) to post as. Positive and without the minus sign. Omit to post a personal story.' },
+        add_to_news: { type: 'boolean', description: 'Add the story to the news feed (default true)' },
+        link_text: { type: 'string', description: 'Link button text', enum: ['to_store', 'vote', 'more', 'book', 'order', 'enroll', 'fill', 'signup', 'buy', 'ticket', 'write', 'open', 'learn_more', 'view', 'go_to', 'contact', 'watch', 'play', 'install', 'read', 'calendar'] },
+        link_url: { type: 'string', description: 'Link URL for the button (requires link_text)' },
+      },
+      required: ['image'],
+    },
+  },
+  {
+    name: 'vk_stories_post_video',
+    title: 'Publish a video story',
+    description: 'Publish a video story on VK (three-step upload: get upload server, upload the video, save). Posts a personal story, or a community one when group_id is set.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        video: { type: 'string', description: 'Video URL (http/https) or absolute local file path' },
+        group_id: { type: 'string', description: 'Community ID or its short name (e.g. apiclub) to post as. Positive and without the minus sign. Omit to post a personal story.' },
+        add_to_news: { type: 'boolean', description: 'Add the story to the news feed (default true)' },
+        link_text: { type: 'string', description: 'Link button text', enum: ['to_store', 'vote', 'more', 'book', 'order', 'enroll', 'fill', 'signup', 'buy', 'ticket', 'write', 'open', 'learn_more', 'view', 'go_to', 'contact', 'watch', 'play', 'install', 'read', 'calendar'] },
+        link_url: { type: 'string', description: 'Link URL for the button (requires link_text)' },
+      },
+      required: ['video'],
+    },
+  },
+  {
     name: 'vk_groups_search',
     title: 'Search communities',
     description: 'Find communities by keyword, optionally narrowed by type, country, city or sort order. Returns matches with a total count.',
@@ -717,6 +785,8 @@ const OUTPUT_SCHEMAS = {
   vk_wall_edit: successOutput,
   vk_wall_delete: successOutput,
   vk_groups_join: successOutput,
+  vk_stories_post_photo: listOutput('The created photo story'),
+  vk_stories_post_video: listOutput('The created video story'),
 };
 
 // Per-area icons (SEP-973). Inline SVG data URIs keep them dependency-free and
@@ -741,6 +811,7 @@ const ICONS = {
   chart: icon('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
   heart: icon('<path d="M12 20s-7-4.5-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.5 12 20 12 20z"/>'),
   search: icon('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),
+  story: icon('<circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="3"/>'),
 };
 
 const TOOL_ICONS = {
@@ -763,6 +834,8 @@ const TOOL_ICONS = {
   vk_photos_upload_wall: ICONS.photo,
   vk_stats_get: ICONS.chart,
   vk_likes_get: ICONS.heart,
+  vk_stories_post_photo: ICONS.story,
+  vk_stories_post_video: ICONS.story,
 };
 
 // Tools that change something on VK, and whether the change destroys or
@@ -774,6 +847,8 @@ const WRITING_TOOLS = {
   vk_wall_create_comment: { destructive: false },
   vk_photos_upload_wall: { destructive: false },
   vk_groups_join: { destructive: false, idempotent: true },
+  vk_stories_post_photo: { destructive: false },
+  vk_stories_post_video: { destructive: false },
 };
 
 // MCP annotations let a client tell reads from writes — so it can auto-approve
@@ -902,6 +977,38 @@ async function handleToolCall(name, args) {
           ...photo,
           attachment: `photo${photo.owner_id}_${photo.id}`,
         };
+        break;
+      }
+
+      case 'vk_stories_post_photo': {
+        const uploadServer = await vk.storiesGetPhotoUploadServer({
+          add_to_news: args.add_to_news === false ? 0 : 1,
+          group_id: args.group_id,
+          link_text: args.link_text,
+          link_url: args.link_url,
+        });
+        const uploadResult = await vk.uploadStoryFile(uploadServer.upload_url, args.image);
+        const photoUploadData = uploadResult.response || uploadResult;
+        if (!photoUploadData.upload_result) {
+          throw new Error(`Story photo upload failed: ${JSON.stringify(uploadResult)}`);
+        }
+        result = await vk.storiesSave({ upload_results: photoUploadData.upload_result });
+        break;
+      }
+
+      case 'vk_stories_post_video': {
+        const uploadServer = await vk.storiesGetVideoUploadServer({
+          add_to_news: args.add_to_news === false ? 0 : 1,
+          group_id: args.group_id,
+          link_text: args.link_text,
+          link_url: args.link_url,
+        });
+        const uploadResult = await vk.uploadStoryFile(uploadServer.upload_url, args.video, 'video_file');
+        const videoUploadData = uploadResult.response || uploadResult;
+        if (!videoUploadData.upload_result) {
+          throw new Error(`Story video upload failed: ${JSON.stringify(uploadResult)}`);
+        }
+        result = await vk.storiesSave({ upload_results: videoUploadData.upload_result });
         break;
       }
 
