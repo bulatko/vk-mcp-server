@@ -16,6 +16,10 @@
 </p>
 
 <p align="center">
+  <strong>English</strong> · <a href="README.ru.md">Русский</a>
+</p>
+
+<p align="center">
   Enables AI assistants like Claude to interact with VK through a standardized interface.
 </p>
 
@@ -199,7 +203,8 @@ Add to your project's `.mcp.json`:
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `VK_ACCESS_TOKEN` | for tool calls | — | VK API access token. The server starts and lists its tools without one; calling a tool then returns an error saying so |
+| `VK_ACCESS_TOKEN` | for tool calls | — | The token tools act with, usually a community token. The server starts and lists its tools without one; calling a tool then returns an error saying so |
+| `VK_SERVICE_KEY` | no | — | Service key from your VK app. Reads the access token is refused (a wall, under a community token) are made with it; never used for writes. On its own, it is enough for public reads |
 | `VK_TIMEOUT_MS` | no | `30000` | Abort a VK request that hangs longer than this |
 | `VK_API_BASE` | no | `https://api.vk.com/method` | Point the server at an API mirror or proxy |
 
