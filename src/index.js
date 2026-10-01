@@ -6,16 +6,8 @@
  * Позволяет AI-ассистентам взаимодействовать с VK через стандартизированный интерфейс
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ListPromptsRequestSchema,
-  GetPromptRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { Server } from '@modelcontextprotocol/server';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -1252,82 +1244,89 @@ const prompts = [
 // SERVER SETUP
 // ============================================
 
-const server = new Server(
-  { name: 'vk-mcp-server', version: VERSION },
-  { capabilities: { tools: {}, prompts: {}, resources: {} } }
-);
+// One instance per connection. serveStdio decides the protocol era from the
+// opening exchange (initialize for 2025 clients, server/discover for the
+// 2026-07-28 revision) and pins the instance this factory returns, so the
+// same handlers serve both.
+function buildServer() {
+  const server = new Server(
+    { name: 'vk-mcp-server', version: VERSION },
+    { capabilities: { tools: {}, prompts: {}, resources: {} } }
+  );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+  server.setRequestHandler('tools/list', async () => ({ tools }));
 
-server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-  resources: UI_RESOURCES.map(({ file, ...resource }) => resource),
-}));
+  server.setRequestHandler('resources/list', async () => ({
+    resources: UI_RESOURCES.map(({ file, ...resource }) => resource),
+  }));
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  const resource = UI_RESOURCES.find((r) => r.uri === request.params.uri);
-  if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
+  server.setRequestHandler('resources/read', async (request) => {
+    const resource = UI_RESOURCES.find((r) => r.uri === request.params.uri);
+    if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
 
-  const text = await readFile(path.join(UI_DIR, resource.file), 'utf8');
-  return {
-    contents: [
-      { uri: resource.uri, mimeType: resource.mimeType, text, _meta: resource._meta },
-    ],
-  };
-});
-
-server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-  prompts: prompts.map(({ build, ...prompt }) => prompt),
-}));
-
-server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-  const prompt = prompts.find((p) => p.name === request.params.name);
-  if (!prompt) throw new Error(`Unknown prompt: ${request.params.name}`);
-
-  const args = request.params.arguments || {};
-  const missing = (prompt.arguments || [])
-    .filter((a) => a.required && !args[a.name])
-    .map((a) => a.name);
-  if (missing.length) {
-    throw new Error(`Missing required argument(s) for ${prompt.name}: ${missing.join(', ')}`);
-  }
-
-  return {
-    description: prompt.description,
-    messages: [
-      { role: 'user', content: { type: 'text', text: prompt.build(args) } },
-    ],
-  };
-});
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  try {
-    const result = await handleToolCall(name, args || {});
-    const pagination = paginationFor(args || {}, result);
-    const payload = pagination ? { ...result, pagination } : result;
-    const response = {
-      // Text stays for clients that do not read structuredContent yet.
-      content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-    };
-    if (OUTPUT_SCHEMAS[name]) {
-      response.structuredContent = toStructuredContent(payload);
-    }
-    return response;
-  } catch (error) {
-    // A failed VK call is a tool execution error, not a protocol error: the
-    // model sees it, can explain it or retry with different arguments. Without
-    // isError the client treats the message as a successful result.
+    const text = await readFile(path.join(UI_DIR, resource.file), 'utf8');
     return {
-      content: [{ type: 'text', text: JSON.stringify({ error: error.message }, null, 2) }],
-      isError: true,
+      contents: [
+        { uri: resource.uri, mimeType: resource.mimeType, text, _meta: resource._meta },
+      ],
     };
-  }
-});
+  });
+
+  server.setRequestHandler('prompts/list', async () => ({
+    prompts: prompts.map(({ build, ...prompt }) => prompt),
+  }));
+
+  server.setRequestHandler('prompts/get', async (request) => {
+    const prompt = prompts.find((p) => p.name === request.params.name);
+    if (!prompt) throw new Error(`Unknown prompt: ${request.params.name}`);
+
+    const args = request.params.arguments || {};
+    const missing = (prompt.arguments || [])
+      .filter((a) => a.required && !args[a.name])
+      .map((a) => a.name);
+    if (missing.length) {
+      throw new Error(`Missing required argument(s) for ${prompt.name}: ${missing.join(', ')}`);
+    }
+
+    return {
+      description: prompt.description,
+      messages: [
+        { role: 'user', content: { type: 'text', text: prompt.build(args) } },
+      ],
+    };
+  });
+
+  server.setRequestHandler('tools/call', async (request) => {
+    const { name, arguments: args } = request.params;
+
+    try {
+      const result = await handleToolCall(name, args || {});
+      const pagination = paginationFor(args || {}, result);
+      const payload = pagination ? { ...result, pagination } : result;
+      const response = {
+        // Text stays for clients that do not read structuredContent yet.
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+      };
+      if (OUTPUT_SCHEMAS[name]) {
+        response.structuredContent = toStructuredContent(payload);
+      }
+      return response;
+    } catch (error) {
+      // A failed VK call is a tool execution error, not a protocol error: the
+      // model sees it, can explain it or retry with different arguments. Without
+      // isError the client treats the message as a successful result.
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: error.message }, null, 2) }],
+        isError: true,
+      };
+    }
+  });
+
+  return server;
+}
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  serveStdio(buildServer);
   console.error('VK MCP Server running on stdio');
   if (!VK_ACCESS_TOKEN) {
     console.error('No VK_ACCESS_TOKEN set — tools are listed but will fail when called.');

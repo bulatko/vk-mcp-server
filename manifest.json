@@ -59,7 +59,7 @@
   "prompts_generated": true,
   "compatibility": {
     "runtimes": {
-      "node": ">=18.0.0"
+      "node": ">=20.0.0"
     }
   }
 }
