@@ -47,8 +47,12 @@
 ## Features
 
 - **21 tools** across users, walls, communities, photos, stories, likes and statistics
-- **Read and write**: search and read freely; posting, editing and deleting are
-  marked as write operations so your client can ask first
+- **Read and write as a community**: with a community token and a service key
+  together, the assistant reads walls, profiles and communities and posts,
+  comments and publishes stories as your community. Writes are marked as such
+  so your client can ask first. Some tools (search, likes, statistics, editing)
+  need a full user token, which VK no longer issues to new apps — the
+  [setup guide](docs/SETUP.md) lists exactly what each token reaches
 - **Structured output**: every tool declares an output schema, so the model gets
   typed data instead of a JSON blob it has to parse out of text
 - **Pagination that explains itself**: list results say how many matches exist
