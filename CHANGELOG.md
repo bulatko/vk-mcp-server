@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2
+
+- The bundle's manifest lists the tools. Directories that read the .mcpb
+  without starting the server — Smithery among them — showed none, because the
+  manifest only said they were generated at runtime. `npm run sync:manifest`
+  writes them from the server itself, and a test fails when the two drift
+
 ## 0.8.1
 
 - README in Russian (`README.ru.md`): what the server does, a two-minute

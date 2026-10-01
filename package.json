@@ -19,7 +19,8 @@
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "build:mcpb": "bash scripts/build-mcpb.sh",
     "login": "node src/index.js --login",
-    "check": "node src/index.js --check"
+    "check": "node src/index.js --check",
+    "sync:manifest": "node scripts/sync-manifest.mjs"
   },
   "keywords": [
     "mcp",

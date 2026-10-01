@@ -69,5 +69,107 @@
     "runtimes": {
       "node": ">=20.0.0"
     }
-  }
+  },
+  "tools": [
+    {
+      "name": "vk_users_get",
+      "description": "Look up VK users by numeric ID or short name (e.g. durov). Use this to resolve a name to an ID before calling other tools, or to check whether a profile is closed."
+    },
+    {
+      "name": "vk_users_search",
+      "description": "Find VK users by name, optionally narrowed by city, country, sex or age. Returns matches with a total count; page through them with offset."
+    },
+    {
+      "name": "vk_wall_get",
+      "description": "Read posts from a user or community wall, newest first. Pass domain for a short address (durov) or owner_id for a numeric one — negative for a community, positive for a person. Each post carries its likes, reposts, comments and views."
+    },
+    {
+      "name": "vk_wall_post",
+      "description": "Publish a post on a wall. To post in a community, set owner_id to the community ID with a minus sign (-123) and from_group true, otherwise it appears as your personal post on the community wall. Attach media with the attachment string that vk_photos_upload_wall returns. Returns the new post_id."
+    },
+    {
+      "name": "vk_wall_create_comment",
+      "description": "Add a comment to a post. owner_id is negative for a community. Returns the new comment_id."
+    },
+    {
+      "name": "vk_wall_get_by_id",
+      "description": "Fetch particular posts by their full IDs in {owner_id}_{post_id} form, e.g. -1_340393. Use it to re-read a post you already know about, such as one you just published."
+    },
+    {
+      "name": "vk_wall_edit",
+      "description": "Replace the text or attachments of an existing post. owner_id is negative for a community. Editing overwrites the previous content, so pass the full new text rather than an addition."
+    },
+    {
+      "name": "vk_wall_delete",
+      "description": "Delete a post from a wall. owner_id is negative for a community. This cannot be undone."
+    },
+    {
+      "name": "vk_photos_upload_wall",
+      "description": "Upload a photo so it can be attached to a post. Takes a URL or a local file path, runs VK's three-step upload, and returns an attachment string like photo-1_2 to pass to vk_wall_post or vk_wall_edit. group_id is positive here, without the minus sign. Needs a full user token: VK refuses a community token here (error 27), and has no other way for one to attach a photo to a post."
+    },
+    {
+      "name": "vk_stories_post_photo",
+      "description": "Publish a photo story on VK (three-step upload: get upload server, upload the photo, save). Posts a personal story, or a community one when group_id is set."
+    },
+    {
+      "name": "vk_stories_post_video",
+      "description": "Publish a video story on VK (three-step upload: get upload server, upload the video, save). Posts a personal story, or a community one when group_id is set."
+    },
+    {
+      "name": "vk_messages_get_conversations",
+      "description": "List the conversations in your community's inbox, newest first, with the last message of each and the names of the people in them. Use filter \"unread\" to see what is waiting for a reply. Needs a community token with the messages right."
+    },
+    {
+      "name": "vk_messages_get_history",
+      "description": "Read the messages of one conversation in your community's inbox, newest first. peer_id is the person's user ID, as vk_messages_get_conversations shows it. Needs a community token with the messages right."
+    },
+    {
+      "name": "vk_messages_send",
+      "description": "Send a message from your community to a person. VK only delivers to people who have written to the community or allowed it to message them. This reaches a real person: show the user the text before sending. Returns the new message_id."
+    },
+    {
+      "name": "vk_messages_mark_as_read",
+      "description": "Mark every message in one conversation of your community's inbox as read, e.g. after answering it."
+    },
+    {
+      "name": "vk_groups_search",
+      "description": "Find communities by keyword, optionally narrowed by type, country, city or sort order. Returns matches with a total count."
+    },
+    {
+      "name": "vk_groups_get_members",
+      "description": "List the members of a community. Returns bare user IDs unless you ask for fields, in which case it returns profiles. Many communities hide their member list, which comes back as an access error rather than an empty list."
+    },
+    {
+      "name": "vk_groups_join",
+      "description": "Join a community as the token owner, or send a join request if it is closed. group_id is positive here, without the minus sign."
+    },
+    {
+      "name": "vk_groups_get",
+      "description": "List the communities the token owner belongs to. Needs a user token — a community or service token cannot answer this."
+    },
+    {
+      "name": "vk_groups_get_by_id",
+      "description": "Look up communities by numeric ID or short name (e.g. apiclub). Use it to resolve a name to an ID, or to read the description, member count and type before deciding what to do with it."
+    },
+    {
+      "name": "vk_friends_get",
+      "description": "List a user's friends. Returns bare IDs unless you ask for fields. Needs a user token, and only works for profiles that expose their friend list."
+    },
+    {
+      "name": "vk_newsfeed_get",
+      "description": "Read the token owner's own newsfeed. Needs a user token — this is the feed of the account the token belongs to, not a public one."
+    },
+    {
+      "name": "vk_stats_get",
+      "description": "Read a community's statistics by period: reach, visitors and activity. The token owner must be an administrator of that community, otherwise VK denies access."
+    },
+    {
+      "name": "vk_likes_get",
+      "description": "List the users who liked or reacted to an object — a post, comment, photo or video — with counts per reaction. owner_id is negative for a community; item_id is the post or object ID."
+    },
+    {
+      "name": "vk_photos_get",
+      "description": "List photos from an album. album_id accepts wall, profile or saved as well as a numeric album ID. owner_id is negative for a community."
+    }
+  ]
 }
