@@ -6,7 +6,7 @@
   <a href="https://github.com/bulatko/vk-mcp-server/blob/master/LICENSE"><img src="https://img.shields.io/npm/l/vk-mcp-server.svg" alt="license"></a>
 </p>
 
-[English](README.md) · **Русский**
+[English](README.md) · **Русский** · [Сайт проекта](https://bulatko.github.io/vk-mcp-server/)
 
 MCP-сервер, через который Claude, Cursor, VS Code и другие клиенты
 [Model Context Protocol](https://modelcontextprotocol.io) работают с ВКонтакте:

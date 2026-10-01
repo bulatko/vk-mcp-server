@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <strong>English</strong> · <a href="README.ru.md">Русский</a>
+  <strong>English</strong> · <a href="README.ru.md">Русский</a> · <a href="https://bulatko.github.io/vk-mcp-server/">Сайт (RU)</a>
 </p>
 
 <p align="center">

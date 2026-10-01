@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VK MCP Server — подключить ВКонтакте к Claude и другим ИИ-ассистентам</title>
+  <meta name="description" content="Бесплатный открытый MCP-сервер для ВКонтакте: ИИ-ассистент (Claude, Cursor, VS Code) разбирает сообщения сообщества и отвечает на них, публикует посты и истории, читает стены. Установка за две минуты.">
+  <link rel="canonical" href="https://bulatko.github.io/vk-mcp-server/">
+  <link rel="alternate" hreflang="en" href="https://github.com/bulatko/vk-mcp-server#readme">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="VK MCP Server — ВКонтакте для ИИ-ассистентов">
+  <meta property="og:description" content="Claude разбирает входящие вашего сообщества ВКонтакте, пишет черновики ответов и публикует посты. Открытый код, MIT.">
+  <meta property="og:url" content="https://bulatko.github.io/vk-mcp-server/">
+  <meta property="og:image" content="https://bulatko.github.io/vk-mcp-server/img/wall-card.jpg">
+  <meta property="og:locale" content="ru_RU">
+  <link rel="stylesheet" href="style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "VK MCP Server",
+    "alternateName": "vk-mcp-server",
+    "description": "MCP-сервер для ВКонтакте: ИИ-ассистент разбирает сообщения сообщества, публикует посты и истории, читает стены и сообщества.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Windows, macOS, Linux",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" },
+    "license": "https://opensource.org/licenses/MIT",
+    "url": "https://bulatko.github.io/vk-mcp-server/",
+    "codeRepository": "https://github.com/bulatko/vk-mcp-server",
+    "inLanguage": ["ru", "en"]
+  }
+  </script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="./" aria-current="page">Главная</a>
+    <a href="soobshcheniya-soobshchestva/">Сообщения сообщества</a>
+    <a href="tokeny-vk-api/">Какой токен нужен</a>
+    <a href="https://github.com/bulatko/vk-mcp-server">GitHub</a>
+  </nav>
+</header>
+<main>
+  <h1>ВКонтакте для Claude и других ИИ-ассистентов</h1>
+  <p class="lead">VK MCP Server подключает ваше сообщество ВКонтакте к ИИ-ассистенту. Он разбирает входящие сообщения
+  и предлагает ответы, публикует посты и истории, читает стены и сообщества. Бесплатно, открытый код, работает
+  у вас на компьютере.</p>
+  <p>
+    <a class="cta" href="#ustanovka">Подключить за две минуты</a>
+    <a class="cta secondary" href="https://github.com/bulatko/vk-mcp-server">Исходный код на GitHub</a>
+  </p>
+
+  <img class="shot" src="img/wall-card.jpg" width="420" alt="Стена сообщества ВКонтакте карточкой прямо в чате с Claude: посты с фото и счётчиками">
+
+  <h2>Что умеет</h2>
+  <div class="grid">
+    <div><b>Разбирает входящие</b>«Покажи непрочитанное в сообществе» — ассистент перескажет каждый диалог и
+      предложит ответ. Отправит только то, что вы одобрили. <a href="soobshcheniya-soobshchestva/">Подробнее</a></div>
+    <div><b>Публикует</b>Посты, комментарии и истории (фото и видео) от имени сообщества.</div>
+    <div><b>Читает</b>Стены, профили, сообщества и их участников — с постраничной навигацией, чтобы не
+      останавливаться на первых двадцати постах.</div>
+    <div><b>Анализирует</b>Готовые сценарии: дайджест сообщества, отчёт по вовлечённости, портрет аудитории,
+      поиск похожих сообществ.</div>
+  </div>
+  <p>В клиентах, которые поддерживают MCP Apps (Claude, Claude Desktop, VS Code Copilot, Goose), стены, сообщества и
+  профили показываются карточками, а не текстом. Всё, что меняет что-то во ВКонтакте, помечено как запись — клиент
+  спросит разрешение, прежде чем опубликовать или отправить.</p>
+
+  <h2 id="ustanovka">Как подключить</h2>
+  <h3>1. Получите токены</h3>
+  <p><b>Токен сообщества</b> — в сообществе, которым вы управляете: Управление → Работа с API → Ключи доступа →
+  Создать ключ. Отметьте права <code>wall</code>, <code>photos</code>, <code>stories</code>, <code>messages</code>,
+  <code>manage</code>. Раздел есть только в полной веб-версии сайта. Токен не протухает и не привязан к браузеру.</p>
+  <p><b>Сервисный ключ</b> — на странице настроек вашего приложения ВКонтакте. Он нужен, чтобы ассистент читал
+  стены: токену сообщества ВКонтакте чтение стены не даёт. <a href="tokeny-vk-api/">Почему так и что умеет каждый
+  токен</a>.</p>
+
+  <h3>2. Подключите к ассистенту</h3>
+  <p><b>Claude Desktop — в один клик.</b> Скачайте файл <code>.mcpb</code> со
+  <a href="https://github.com/bulatko/vk-mcp-server/releases/latest">страницы релизов</a> и откройте его. Claude Desktop
+  установит сервер и попросит токены в форме. Ничего ставить отдельно не нужно.</p>
+  <p><b>Claude Code, Cursor, VS Code, Windsurf, Cline</b> — добавьте в настройки MCP (нужен Node.js 20 или новее):</p>
+<pre><code>{
+  "mcpServers": {
+    "vk": {
+      "command": "npx",
+      "args": ["-y", "vk-mcp-server"],
+      "env": {
+        "VK_ACCESS_TOKEN": "vk1.a...токен сообщества",
+        "VK_SERVICE_KEY": "...сервисный ключ"
+      }
+    }
+  }
+}</code></pre>
+  <p>Проверить, что умеют ваши токены, можно ещё до первого запроса:</p>
+<pre><code>VK_ACCESS_TOKEN=... VK_SERVICE_KEY=... npx vk-mcp-server --check</code></pre>
+
+  <h2>Вопросы</h2>
+  <h3>Это бесплатно?</h3>
+  <p>Да. Открытый код под лицензией MIT. Сервер работает у вас на компьютере, токены никуда, кроме API ВКонтакте,
+  не уходят.</p>
+  <h3>Работает ли с ChatGPT?</h3>
+  <p>Пока нет: ChatGPT подключает только удалённые MCP-серверы, а этот работает локально. Подходят Claude Desktop,
+  Claude Code, Cursor, VS Code, Windsurf, Cline, Goose и другие клиенты с поддержкой локальных MCP-серверов.</p>
+  <h3>Можно ли публиковать посты с фото?</h3>
+  <p>От имени сообщества — нет, и это ограничение ВКонтакте, а не сервера. Мы проверили все способы:
+  загрузку фото на стену токену сообщества ВКонтакте не даёт. Подробности — на странице
+  <a href="tokeny-vk-api/">про токены</a>.</p>
+  <h3>Можно ли редактировать и удалять посты, смотреть статистику?</h3>
+  <p>Для этого ВКонтакте требует полный пользовательский токен, а новым приложениям его больше не выдаёт. Если у вас
+  такой токен остался — инструменты для этого в сервере есть.</p>
+  <h3>Что такое MCP?</h3>
+  <p><a href="https://modelcontextprotocol.io">Model Context Protocol</a> — открытый стандарт, по которому ИИ-ассистенты
+  подключают внешние инструменты. Один сервер работает со всеми клиентами, которые его поддерживают.</p>
+</main>
+<footer>
+  VK MCP Server · <a href="https://github.com/bulatko/vk-mcp-server">GitHub</a> ·
+  <a href="https://www.npmjs.com/package/vk-mcp-server">npm</a> · в официальном реестре MCP:
+  <code>io.github.bulatko/vk</code> · лицензия MIT. Проект не связан с VK и не одобрен ею.
+</footer>
+</body>
+</html>

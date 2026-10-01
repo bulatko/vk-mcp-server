@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Какой токен VK API что умеет в 2026: токен сообщества, сервисный ключ, VK ID — живые замеры</title>
+  <meta name="description" content="Что на самом деле разрешает VK API каждому токену в 2026 году: токен сообщества публикует, но не читает стену; VK ID не постит (ошибка 1051). Таблица по живым замерам и разбор ошибок 27, 28, 1051, 100.">
+  <link rel="canonical" href="https://bulatko.github.io/vk-mcp-server/tokeny-vk-api/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Что умеет каждый токен VK API в 2026 году — живые замеры">
+  <meta property="og:description" content="Токен сообщества постит, но не читает стену и не загружает фото. VK ID — только чтение. Таблица и разбор ошибок.">
+  <meta property="og:url" content="https://bulatko.github.io/vk-mcp-server/tokeny-vk-api/">
+  <meta property="og:locale" content="ru_RU">
+  <link rel="stylesheet" href="../style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Что умеет каждый токен VK API в 2026 году",
+    "datePublished": "2026-10-01",
+    "inLanguage": "ru",
+    "about": "VK API access tokens"
+  }
+  </script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="../">Главная</a>
+    <a href="../soobshcheniya-soobshchestva/">Сообщения сообщества</a>
+    <a href="./" aria-current="page">Какой токен нужен</a>
+    <a href="https://github.com/bulatko/vk-mcp-server">GitHub</a>
+  </nav>
+</header>
+<main>
+  <h1>Что умеет каждый токен VK API в 2026 году</h1>
+  <p class="lead">Документация ВКонтакте и его схема API местами расходятся с тем, что API отвечает на самом деле.
+  Ниже — не пересказ документации, а результаты вызовов на живом сообществе в октябре 2026 года, токеном
+  сообщества со всеми правами.</p>
+
+  <h2>Коротко</h2>
+  <table>
+    <tr><th>Токен</th><th>Работает</th><th>Не работает</th></tr>
+    <tr><td><b>Токен сообщества</b> (<code>vk1.a…</code>, из настроек сообщества)</td>
+      <td>Пост на стену сообщества, комментарий, истории (публикация и удаление), сообщения сообщества
+      (диалоги, история, отправка, отметка о прочтении), профили, информация о сообществах, включение разделов
+      сообщества</td>
+      <td>Чтение стены, правка и удаление постов, загрузка фото на стену, альбомы, статистика, лайки, поиск,
+      лента новостей</td></tr>
+    <tr><td><b>Сервисный ключ</b> (из настроек приложения)</td>
+      <td>Чтение публичных профилей, стен, информации о сообществах, открытых списков участников</td>
+      <td>Любая запись; поиск, лайки, фото, посты по ID</td></tr>
+    <tr><td><b>VK ID</b> (<code>vk2.a…</code>, вход через id.vk.com)</td>
+      <td>То же публичное чтение, что у сервисного ключа</td>
+      <td>Публикация, фото, друзья, лента, статистика — ошибка 1051 при любых правах</td></tr>
+  </table>
+  <p>Полный пользовательский токен, который всё это умел, ВКонтакте новым приложениям больше не выдаёт: вход через
+  VK ID даёт токен для входа, а не для API, а старый <code>oauth.vk.com</code> для приложений, созданных на
+  id.vk.com, отвечает «Security Error».</p>
+
+  <h2>Расхождения со схемой API</h2>
+  <p>В официальной схеме <a href="https://github.com/VKCOM/vk-api-schema">VKCOM/vk-api-schema</a> у каждого метода
+  указано, какие токены его вызывают. Схеме нельзя верить без проверки:</p>
+  <ul>
+    <li><code>wall.post</code> по схеме — только пользовательский токен. На деле токен сообщества публикует пост на
+    стене своего сообщества.</li>
+    <li><code>photos.get</code> по схеме доступен сервисному ключу. На деле — ошибка 1051.</li>
+  </ul>
+
+  <h2>Почему от имени сообщества нельзя опубликовать пост с фото</h2>
+  <p>Чтобы прикрепить фото к посту, его нужно загрузить в альбом стены (<code>photos.getWallUploadServer</code> →
+  <code>photos.saveWallPhoto</code>) — токену сообщества это закрыто. Мы проверили обходные пути:</p>
+  <ul>
+    <li><b>Фото, загруженное для сообщений</b> (<code>photos.getMessagesUploadServer</code>, это токену сообщества
+    доступно). Пост с таким вложением публикуется, но ВКонтакте <b>молча выбрасывает фото</b> — ошибки нет,
+    вложений у поста ноль.</li>
+    <li><b>Картинка документом</b> (<code>docs.getWallUploadServer</code>; раздел «Документы» тот же токен включает
+    через <code>groups.edit docs=1</code>). Прикрепляется, но в ленте видна ссылкой на файл, а не изображением.</li>
+    <li><b>Ссылка с картинкой-превью</b>. Вложение-ссылка без фото — ошибка 100
+    <code>Violated: link_photo_sizing_rule. No photo given</code>; ссылка в тексте поста превью через API не
+    получает.</li>
+  </ul>
+  <p>Если вы знаете рабочий способ — напишите в
+  <a href="https://github.com/bulatko/vk-mcp-server/issues">issues</a>, проверим и добавим.</p>
+
+  <h2>Что значат ошибки</h2>
+  <table>
+    <tr><th>Ошибка</th><th>Что значит</th></tr>
+    <tr><td><code>27 Group authorization failed: method is unavailable with group auth</code></td>
+      <td>Метод закрыт для токена сообщества (например, чтение стены). Для чтения нужен сервисный ключ.</td></tr>
+    <tr><td><code>1051 Method is not available for this profile type</code></td>
+      <td>Метод закрыт для этого вида токена — так отвечают и VK ID, и сервисный ключ. Права (scope) тут не помогут.</td></tr>
+    <tr><td><code>28 Application authorization failed</code></td>
+      <td>Сервисному ключу метод недоступен.</td></tr>
+    <tr><td><code>5</code> с <code>subcode 1130</code></td>
+      <td>Токен привязан к IP, с которого его получили, а запрос идёт с другого. Токен сообщества не привязан.</td></tr>
+    <tr><td><code>901 Can't send messages for users without permission</code></td>
+      <td>Человек не писал сообществу и не разрешал сообщения от него.</td></tr>
+    <tr><td><code>15 Access denied</code></td>
+      <td>Данные скрыты: закрытый профиль, сообщество скрывает участников или раздел выключен.</td></tr>
+  </table>
+
+  <h2>Как это обходит VK MCP Server</h2>
+  <p>Сервер принимает два токена сразу: токен сообщества (<code>VK_ACCESS_TOKEN</code>) и сервисный ключ
+  (<code>VK_SERVICE_KEY</code>). Каждый запрос сначала идёт с токеном сообщества; если ВКонтакте отказывает именно
+  из-за вида токена (ошибки 27 и 1051), тот же запрос повторяется сервисным ключом. Запись на ключ не уходит
+  никогда: отказ по виду токена значит, что ВКонтакте ничего не выполнил. Команда
+  <code>npx vk-mcp-server --check</code> показывает, что умеют ваши токены.</p>
+  <p><a class="cta" href="../#ustanovka">Подключить сервер</a></p>
+</main>
+<footer>
+  Замеры от 1 октября 2026 года · VK MCP Server · <a href="https://github.com/bulatko/vk-mcp-server">GitHub</a> ·
+  лицензия MIT. Проект не связан с VK и не одобрен ею.
+</footer>
+</body>
+</html>
