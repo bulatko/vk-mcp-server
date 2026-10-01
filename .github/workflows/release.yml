@@ -75,11 +75,12 @@ jobs:
           ./mcp-publisher login github-oidc
           # The registry checks the version against npm, and a package published
           # seconds ago is not visible there yet: 0.7.0 failed exactly that way
-          # five seconds after npm accepted it. Wait for npm to show it first.
+          # five seconds after npm accepted it, and 0.8.2 was still "being processed"
+          # after three minutes. Wait up to ten for npm to show it.
           VERSION="${GITHUB_REF_NAME#v}"
-          for i in $(seq 1 18); do
+          for i in $(seq 1 60); do
             npm view "vk-mcp-server@$VERSION" version >/dev/null 2>&1 && break
-            echo "waiting for npm to show $VERSION ($i/18)"; sleep 10
+            echo "waiting for npm to show $VERSION ($i/60)"; sleep 10
           done
           ./mcp-publisher publish
 
