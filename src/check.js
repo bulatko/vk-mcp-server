@@ -25,12 +25,20 @@ async function call(token, method, params = {}) {
 const OK = '✓';
 const NO = '✗';
 
+// The codes VK uses for "this kind of token may not call this method" — the
+// ones on which the server repeats a read with VK_SERVICE_KEY.
+const WRONG_TOKEN_KIND = new Set([27, 1051]);
+
 export async function runCheck() {
-  const token = process.env.VK_ACCESS_TOKEN;
+  const serviceKey = process.env.VK_SERVICE_KEY;
+  // A service key on its own is checked as the token: it is what calls go out with.
+  const token = process.env.VK_ACCESS_TOKEN || serviceKey;
+  const fallback = process.env.VK_ACCESS_TOKEN && serviceKey ? serviceKey : null;
 
   if (!token) {
     console.error(`${NO} VK_ACCESS_TOKEN is not set.`);
-    console.error('   Get one with: npx vk-mcp-server --login <APP_ID>');
+    console.error('   A community token takes three clicks: community → Manage → API usage → Access tokens.');
+    console.error('   Guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md');
     process.exit(1);
   }
 
@@ -85,7 +93,9 @@ export async function runCheck() {
   // token passed "read public profiles and walls" and the user concluded that
   // reading worked, then met a refusal on photos or reactions later.
   const probes = [
-    ['read public profiles and walls', 'users.get', { user_ids: 'durov' }, 'vk_users_get, vk_wall_get, vk_groups_get_by_id'],
+    ['read public profiles and communities', 'users.get', { user_ids: 'durov' }, 'vk_users_get, vk_groups_get_by_id'],
+    // Separate from profiles: a community token reads profiles and is refused walls.
+    ['read walls', 'wall.get', { owner_id: -166562603, count: 1 }, 'vk_wall_get'],
     ['read individual posts by id', 'wall.getById', { posts: '-166562603_1' }, 'vk_wall_get_by_id'],
     ['read photos', 'photos.get', { owner_id: -166562603, album_id: 'wall', count: 1 }, 'vk_photos_get'],
     ['see who reacted to a post', 'likes.getList', { type: 'post', owner_id: -166562603, item_id: 1, count: 1 }, 'vk_likes_get'],
@@ -96,10 +106,22 @@ export async function runCheck() {
     ['read your newsfeed', 'newsfeed.get', { count: 1 }, 'vk_newsfeed_get'],
   ];
 
+  if (fallback) {
+    console.error(`${OK} VK_SERVICE_KEY set — reads this token is refused are retried with it`);
+  }
+
   console.error('\nWhat this token can do:\n');
   const blocked = [];
   for (const [label, method, params, tools] of probes) {
-    const result = await call(token, method, params);
+    let result = await call(token, method, params);
+    // Mirror the server: a refusal by token kind goes to the service key.
+    if (result.error && fallback && WRONG_TOKEN_KIND.has(result.error.error_code)) {
+      const viaKey = await call(fallback, method, params);
+      if (!viaKey.error) {
+        console.error(`  ${OK} ${label}  (with the service key)`);
+        continue;
+      }
+    }
     if (result.error) {
       const { error_code: code } = result.error;
       // 15 does not distinguish "this community hides the data" from "a token
@@ -124,17 +146,21 @@ export async function runCheck() {
       console.error(`  error ${b.code}: ${b.msg}`);
     }
     if (kind === 'service') {
-      console.error('\n  A service key reaches three of the nineteen tools — public profiles,');
-      console.error('  walls and community info — and nothing else. A community token takes');
-      console.error('  three clicks and covers far more, including posting.');
+      console.error('\n  A service key reads public profiles, walls, community info and visible');
+      console.error('  member lists, and nothing else. To post, add a community token as');
+      console.error('  VK_ACCESS_TOKEN and keep this key as VK_SERVICE_KEY.');
     } else if (kind === 'vkid') {
       console.error('\n  Error 1051 here is not about scopes. VK ID issues this token to sign');
       console.error('  you in, and keeps most API methods closed to it; the flow that granted');
       console.error('  full user tokens is retired. Nothing you add to the request will open');
       console.error('  them. A community token is the way to read and write as a community.');
     } else if (kind === 'community') {
-      console.error('\n  Community tokens act as the community, so they cannot read a person\'s');
-      console.error('  friends or newsfeed. That is expected, not a misconfiguration.');
+      console.error('\n  Community tokens act as the community: they post, comment, publish');
+      console.error('  stories and handle messages, and VK refuses them reads like walls,');
+      console.error('  likes or search (error 27). That is VK, not a misconfiguration.');
+      if (!fallback) {
+        console.error('  Set VK_SERVICE_KEY as well and the server reads walls with the key.');
+      }
     } else {
       console.error('\n  Re-issue the token with the missing scopes (wall, friends, groups, photos, stats).');
     }

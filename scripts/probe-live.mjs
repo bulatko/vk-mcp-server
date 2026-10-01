@@ -9,7 +9,8 @@
  *   VK_ACCESS_TOKEN=... node scripts/probe-live.mjs [--write GROUP_ID]
  *
  * Write tools are skipped unless --write names a community to publish in, and
- * everything published is deleted again before the run ends.
+ * the run tries to delete what it published. A community token cannot delete
+ * a post (VK answers 27), so the run names what it left behind instead.
  */
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Client } from "@modelcontextprotocol/client";
@@ -43,7 +44,7 @@ const PROBES = [
 ];
 
 const WRITES = (group) => [
-  ['vk_wall_post', { owner_id: -group, message: 'vk-mcp-server live probe — this post is deleted moments after it appears.' }],
+  ['vk_wall_post', { owner_id: -group, message: 'vk-mcp-server live probe — a test post, safe to delete.' }],
   ['vk_wall_edit', { owner_id: -group, post_id: '<post>', message: 'vk-mcp-server live probe — edited.' }],
   ['vk_wall_create_comment', { owner_id: -group, post_id: '<post>', message: 'probe comment' }],
   ['vk_photos_upload_wall', { group_id: group, image: 'https://vk.com/images/camera_200.png' }],
@@ -87,6 +88,7 @@ async function main() {
 
   for (const [name, args] of PROBES) await run(name, args);
 
+  let leftover = null;
   if (GROUP) {
     let postId = null;
     for (const [name, args] of WRITES(GROUP)) {
@@ -100,6 +102,8 @@ async function main() {
       const out = await run(name, filled);
       if (name === 'vk_wall_post' && out?.post_id) postId = out.post_id;
     }
+    const deleted = rows.find((r) => r.name === 'vk_wall_delete')?.ok;
+    if (postId && !deleted) leftover = `https://vk.com/wall-${GROUP}_${postId}`;
   } else {
     for (const [name] of WRITES(0)) rows.push({ name, ok: null, detail: 'skipped: no --write group' });
   }
@@ -113,6 +117,7 @@ async function main() {
   }
   const worked = rows.filter((r) => r.ok === true).length;
   console.log(`\n${worked}/${rows.filter((r) => r.ok !== null).length} tools answered with data.`);
+  if (leftover) console.log(`\n! The test post could not be deleted with this token. Remove it by hand: ${leftover}`);
 }
 
 main().catch((err) => {

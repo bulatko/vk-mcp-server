@@ -106,19 +106,35 @@ io.github.bulatko/vk
 
 ## Getting VK Access Token
 
-**For anything beyond reading public pages, you need a community token.** Open
-a community you manage → **Manage** → **API usage** → **Access tokens** →
-**Create token**, ticking `wall` and `photos`. Three clicks, no app, never
-expires, tied to no browser or IP — and it is the only kind VK still lets post,
-edit or upload.
+**To let the assistant post, you need a community token.** Open a community you
+manage → **Manage** → **API usage** → **Access tokens** → **Create token**,
+ticking `wall`, `photos`, `stories`, `messages` and `manage`. Three clicks, no
+app, never expires, tied to no browser or IP. It posts, comments and publishes
+stories as the community.
 
-For public reads alone, either of these does:
+**Add a service key next to it, and the assistant reads walls too.** VK refuses
+a community token wall reads (error 27). Set the service key from your VK app's
+settings page as `VK_SERVICE_KEY`, and the server makes every read the token is
+refused with the key instead — writes never go to it:
 
-```bash
-npx vk-mcp-server --login <YOUR_APP_ID>   # sign in as yourself
+```json
+"env": {
+  "VK_ACCESS_TOKEN": "vk1.a...community token",
+  "VK_SERVICE_KEY": "...service key"
+}
 ```
 
-…or the service key from any app page.
+What no token VK issues to a new app can do, checked against the live API in
+October 2026: edit or delete posts, upload wall photos, read statistics, likes,
+photo albums, search or the newsfeed. VK keeps those for full user tokens, which
+it no longer grants.
+
+For public reads alone, the service key on its own is enough (as
+`VK_SERVICE_KEY` or `VK_ACCESS_TOKEN`), or sign in as yourself:
+
+```bash
+npx vk-mcp-server --login <YOUR_APP_ID>
+```
 
 **Worth knowing before you spend an evening on it:** `--login` returns a VK ID
 token (`vk2.a…`), which VK issues for signing in rather than for the API. It
@@ -211,7 +227,8 @@ Common cases:
 |--------------|---------------|
 | `error 8: Application is blocked` | The VK app that issued the token is blocked. Every token from it fails this way, however valid the token looks. Create your own app and issue a fresh token. |
 | `error 5: User authorization failed` | The token expired or was revoked — run `--login` again. |
-| `error 1051` or `error 28` | A service token cannot call user methods. Use a user or community token. |
+| `error 27: Group authorization failed` | A community token asked for something VK keeps from it — reading a wall, say. Set `VK_SERVICE_KEY` and reads go to the key; edits, deletions and statistics stay closed. |
+| `error 1051` or `error 28` | A VK ID token or a service key asked for a method closed to it. To post, use a community token. |
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |
 | `error 5` with `subcode 1130` | VK bound the token to the IP that authorised it, and the server is on a different one. Common when the server runs on a VPS but you signed in from your laptop. Get the token on the machine that runs the server, or use a community token. |
 | `Security Error` when authorising | The old implicit OAuth flow. Use `--login`, which does the current VK ID flow. |

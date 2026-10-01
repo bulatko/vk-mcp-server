@@ -18,10 +18,16 @@
       },
       "environmentVariables": [
         {
-          "description": "VK API access token. Quickest route if you manage a community: Manage -> API usage -> Access tokens -> Create token, ticking wall and photos — no app needed, and it is tied to neither a browser nor an IP. To act as yourself, create your own Standalone app at https://vk.com/editapp?act=create and run `npx vk-mcp-server --login <APP_ID>`. Use your own app rather than a shared ID: a token dies with the app that issued it. Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md",
-          "isRequired": true,
+          "description": "The token tools act with. To post, use a community token: Manage -> API usage -> Access tokens -> Create token (wall, photos, stories, messages, manage) — no app needed, tied to neither a browser nor an IP. It posts, comments and publishes stories, but VK refuses it wall reads; set VK_SERVICE_KEY for those. Guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md",
+          "isRequired": false,
           "isSecret": true,
           "name": "VK_ACCESS_TOKEN"
+        },
+        {
+          "description": "Optional service key from your VK app's settings page. Reads public profiles and walls; reads the access token is refused are made with it. Never used for writes.",
+          "isRequired": false,
+          "isSecret": true,
+          "name": "VK_SERVICE_KEY"
         }
       ]
     }
