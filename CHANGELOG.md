@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.1
+
+- README in Russian (`README.ru.md`): what the server does, a two-minute
+  setup, the token table measured against the live API, community messages and
+  the common errors
+- The Docker image builds on Node 22. It was still on Node 18, which the MCP SDK
+  no longer supports since 0.7.0; the image did start, but on a runtime nothing
+  tests. CI now builds the image and checks it answers `initialize` and lists
+  the tools — Glama and the Docker MCP Catalog build from that file
+- `vk_photos_upload_wall` says up front that it needs a full user token. Checked
+  live: VK refuses a community token every way of putting a photo into a post —
+  the wall upload (error 27), albums (27), and a photo uploaded for messages,
+  which `wall.post` silently drops
+
 ## 0.8.0
 
 - Community messages: `vk_messages_get_conversations` (with `filter: "unread"`
