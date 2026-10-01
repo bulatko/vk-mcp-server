@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 - Community messages: `vk_messages_get_conversations` (with `filter: "unread"`
   for what waits for a reply), `vk_messages_get_history`, `vk_messages_send`
