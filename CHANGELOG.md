@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Community messages: `vk_messages_get_conversations` (with `filter: "unread"`
+  for what waits for a reply), `vk_messages_get_history`, `vk_messages_send`
+  and `vk_messages_mark_as_read`, all with a community token. Sending reaches a
+  real person, so it is marked as a write; its `random_id` is drawn once per
+  call, so a retry after a rate limit cannot deliver the message twice
+- `community_inbox` prompt: summarises unread conversations and drafts replies,
+  and sends only the ones you approve
+- `--check` reports whether the token can read community messages
+- Hints for errors 901 and 902 — a person who never wrote to the community, or
+  whose privacy settings refuse it
+
 ## 0.7.0
 
 Breaking: Node 20 or newer. The server now runs on MCP SDK v2, which needs it;

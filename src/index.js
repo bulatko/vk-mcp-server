@@ -9,6 +9,7 @@
 import { Server } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createRequire } from 'node:module';
+import { randomInt } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -63,6 +64,8 @@ const ERROR_HINTS = {
   113: 'No such user ID.',
   203: 'Access to that community is denied for this token.',
   214: 'Posting to that wall is denied — the token needs the wall scope and the account needs the right to post there.',
+  901: 'This person has not allowed the community to message them. VK only lets a community write to people who wrote to it first or allowed its messages; the conversation has to start on their side.',
+  902: 'This person\'s privacy settings do not accept messages from the community. Only they can change that.',
   // The most misleading code VK returns. It does not mean the account is wrong
   // or the scope is missing: it means the token's issuer is not allowed to call
   // this method at all. Both kinds we can obtain hit it — a service key, and a
@@ -289,6 +292,12 @@ class VKClient {
   storiesGetPhotoUploadServer(params) { return this.call('stories.getPhotoUploadServer', params); }
   storiesGetVideoUploadServer(params) { return this.call('stories.getVideoUploadServer', params); }
   storiesSave(params) { return this.call('stories.save', params); }
+
+  // Messages
+  messagesGetConversations(params) { return this.call('messages.getConversations', params); }
+  messagesGetHistory(params) { return this.call('messages.getHistory', params); }
+  messagesSend(params) { return this.call('messages.send', params); }
+  messagesMarkAsRead(params) { return this.call('messages.markAsRead', params); }
 
   async uploadStoryFile(uploadUrl, fileSource, fieldName = 'file') {
     let blob;
@@ -602,6 +611,67 @@ const tools = [
       required: ['video'],
     },
   },
+  // Community messages. A community token reaches all of these (checked live);
+  // they are the inbox of whoever runs the community, which is why the token
+  // has to be one: a service key or a VK ID token is refused.
+  {
+    name: 'vk_messages_get_conversations',
+    title: 'List community conversations',
+    description: 'List the conversations in your community\'s inbox, newest first, with the last message of each and the names of the people in them. Use filter "unread" to see what is waiting for a reply. Needs a community token with the messages right.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filter: {
+          type: 'string',
+          enum: ['all', 'unread', 'important', 'unanswered'],
+          description: 'Which conversations: all (default), unread, important, or unanswered',
+        },
+        count: { type: 'number', description: 'How many to return (default 20, max 200)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+      },
+    },
+  },
+  {
+    name: 'vk_messages_get_history',
+    title: 'Read a conversation',
+    description: 'Read the messages of one conversation in your community\'s inbox, newest first. peer_id is the person\'s user ID, as vk_messages_get_conversations shows it. Needs a community token with the messages right.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        peer_id: { type: 'number', description: 'User ID of the person the community is talking to' },
+        count: { type: 'number', description: 'How many messages to return (default 20, max 200)' },
+        offset: { type: 'number', description: 'Offset for pagination' },
+      },
+      required: ['peer_id'],
+    },
+  },
+  {
+    name: 'vk_messages_send',
+    title: 'Reply as the community',
+    description: 'Send a message from your community to a person. VK only delivers to people who have written to the community or allowed it to message them. This reaches a real person: show the user the text before sending. Returns the new message_id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        peer_id: { type: 'number', description: 'User ID of the recipient' },
+        message: { type: 'string', description: 'Message text' },
+        attachment: { type: 'string', description: 'Optional media, e.g. photo-1_2 or doc-1_2, comma-separated' },
+        reply_to: { type: 'number', description: 'Optional ID of the message this answers, to quote it' },
+      },
+      required: ['peer_id', 'message'],
+    },
+  },
+  {
+    name: 'vk_messages_mark_as_read',
+    title: 'Mark a conversation as read',
+    description: 'Mark every message in one conversation of your community\'s inbox as read, e.g. after answering it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        peer_id: { type: 'number', description: 'User ID of the person the community is talking to' },
+      },
+      required: ['peer_id'],
+    },
+  },
   {
     name: 'vk_groups_search',
     title: 'Search communities',
@@ -844,6 +914,14 @@ const OUTPUT_SCHEMAS = {
   vk_groups_join: successOutput,
   vk_stories_post_photo: listOutput('The created photo story'),
   vk_stories_post_video: listOutput('The created video story'),
+  vk_messages_get_conversations: listOutput('Conversations, each with its last message; names are in profiles'),
+  vk_messages_get_history: listOutput('Messages, newest first; names are in profiles'),
+  vk_messages_send: {
+    type: 'object',
+    properties: { message_id: { type: 'number', description: 'ID of the sent message' } },
+    required: ['message_id'],
+  },
+  vk_messages_mark_as_read: successOutput,
 };
 
 // Per-area icons (SEP-973). Inline SVG data URIs keep them dependency-free and
@@ -869,6 +947,7 @@ const ICONS = {
   heart: icon('<path d="M12 20s-7-4.5-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.5 12 20 12 20z"/>'),
   search: icon('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),
   story: icon('<circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="3"/>'),
+  message: icon('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>'),
 };
 
 const TOOL_ICONS = {
@@ -893,6 +972,10 @@ const TOOL_ICONS = {
   vk_likes_get: ICONS.heart,
   vk_stories_post_photo: ICONS.story,
   vk_stories_post_video: ICONS.story,
+  vk_messages_get_conversations: ICONS.message,
+  vk_messages_get_history: ICONS.message,
+  vk_messages_send: ICONS.message,
+  vk_messages_mark_as_read: ICONS.message,
 };
 
 // Tools that change something on VK, and whether the change destroys or
@@ -906,6 +989,10 @@ const WRITING_TOOLS = {
   vk_groups_join: { destructive: false, idempotent: true },
   vk_stories_post_photo: { destructive: false },
   vk_stories_post_video: { destructive: false },
+  // Reaches a real person and cannot be unsent: a client that asks before
+  // writes should ask here above all.
+  vk_messages_send: { destructive: false },
+  vk_messages_mark_as_read: { destructive: false, idempotent: true },
 };
 
 // MCP annotations let a client tell reads from writes — so it can auto-approve
@@ -1068,6 +1155,47 @@ async function handleToolCall(name, args) {
         result = await vk.storiesSave({ upload_results: videoUploadData.upload_result });
         break;
       }
+
+      case 'vk_messages_get_conversations':
+        result = await vk.messagesGetConversations({
+          filter: args.filter,
+          count: args.count ?? 20,
+          offset: args.offset,
+          // profiles and groups ride along, so the model can name who wrote
+          extended: 1,
+        });
+        break;
+
+      case 'vk_messages_get_history':
+        result = await vk.messagesGetHistory({
+          peer_id: args.peer_id,
+          count: args.count ?? 20,
+          offset: args.offset,
+          extended: 1,
+        });
+        break;
+
+      case 'vk_messages_send': {
+        // VK drops a second message with the same random_id, so drawing it once
+        // per call makes the rate-limit retry inside VKClient safe: a request
+        // that did reach VK cannot be delivered twice.
+        const messageId = await vk.messagesSend({
+          peer_id: args.peer_id,
+          message: args.message,
+          attachment: args.attachment,
+          reply_to: args.reply_to,
+          random_id: randomInt(1, 2 ** 31 - 1),
+        });
+        result = { message_id: messageId };
+        break;
+      }
+
+      case 'vk_messages_mark_as_read':
+        result = await vk.messagesMarkAsRead({
+          peer_id: args.peer_id,
+          mark_conversation_as_read: 1,
+        });
+        break;
 
       case 'vk_groups_search':
         result = await vk.groupsSearch({
@@ -1300,6 +1428,25 @@ const prompts = [
       'Present a table of name, members, activity and a one-line description, ordered by size. ' +
       'Then say which two or three are worth following and why. ' +
       'Flag any that look dormant or spammy rather than silently including them.',
+  },
+  {
+    name: 'community_inbox',
+    title: 'Work through the community inbox',
+    description: 'Go through unread messages to your community, summarise each, and draft replies for you to approve.',
+    arguments: [
+      { name: 'count', description: 'How many conversations to go through (default 10)', required: false },
+      { name: 'tone', description: 'How replies should sound, e.g. friendly and brief', required: false },
+    ],
+    build: ({ count = '10', tone }) =>
+      'Help me work through my VK community inbox.\n\n' +
+      `List the unread conversations with vk_messages_get_conversations (filter="unread", count=${count}). ` +
+      'For each, read the recent messages with vk_messages_get_history (peer_id from the conversation) ' +
+      'and name the person from profiles.\n\n' +
+      'Give me one short block per conversation: who, what they want, and a draft reply' +
+      (tone ? ` in this tone: ${tone}` : '') +
+      '. Group the ones that need the same answer. Do not send anything yet.\n\n' +
+      'When I approve a draft — as written or edited — send it with vk_messages_send, then mark that ' +
+      'conversation read with vk_messages_mark_as_read. Never send a reply I have not seen.',
   },
 ];
 

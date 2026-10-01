@@ -30,7 +30,9 @@ let received = [];
 const defaultFor = (method) => {
   if (method === 'wall.post') return { response: { post_id: 1 } };
   if (method === 'wall.createComment') return { response: { comment_id: 1 } };
-  if (['wall.edit', 'wall.delete', 'groups.join'].includes(method)) return { response: 1 };
+  if (['wall.edit', 'wall.delete', 'groups.join', 'messages.markAsRead'].includes(method)) return { response: 1 };
+  // messages.send to a single peer_id answers with the bare message ID
+  if (method === 'messages.send') return { response: 12 };
   if (method === 'groups.getById') return { response: { groups: [] } };
   if (method === 'photos.getWallUploadServer') return { response: { upload_url: 'http://127.0.0.1:1/upload' } };
   if (method === 'photos.saveWallPhoto') return { response: [{ owner_id: -1, id: 2 }] };
@@ -483,5 +485,60 @@ describe('stories upload', () => {
     const result = await call('vk_stories_post_photo', { image: fixture });
     expect(result.error).toMatch(/upload failed/i);
     expect(received.map((r) => r.method)).not.toContain('stories.save');
+  });
+});
+
+describe('community messages', () => {
+  it('lists conversations with names attached, unread when asked', async () => {
+    await call('vk_messages_get_conversations', { filter: 'unread' });
+    expect(received.at(-1).method).toBe('messages.getConversations');
+    expect(lastParams()).toMatchObject({ filter: 'unread', count: '20', extended: '1' });
+  });
+
+  it('reads one conversation by peer_id', async () => {
+    await call('vk_messages_get_history', { peer_id: 42, count: 5 });
+    expect(received.at(-1).method).toBe('messages.getHistory');
+    expect(lastParams()).toMatchObject({ peer_id: '42', count: '5', extended: '1' });
+  });
+
+  it('sends with a random_id and returns the message_id', async () => {
+    const result = await call('vk_messages_send', { peer_id: 42, message: 'Здравствуйте!' });
+    expect(result).toEqual({ message_id: 12 });
+    expect(received.at(-1).method).toBe('messages.send');
+    const params = lastParams();
+    expect(params).toMatchObject({ peer_id: '42', message: 'Здравствуйте!' });
+    expect(Number(params.random_id)).toBeGreaterThan(0);
+    expect(Number.isInteger(Number(params.random_id))).toBe(true);
+  });
+
+  it('draws a fresh random_id for every message', async () => {
+    await call('vk_messages_send', { peer_id: 42, message: 'one' });
+    await call('vk_messages_send', { peer_id: 42, message: 'two' });
+    const [a, b] = received.map((r) => new URLSearchParams(r.body).get('random_id'));
+    expect(a).not.toBe(b);
+  });
+
+  it('keeps the random_id when a rate limit makes it retry, so VK cannot deliver twice', async () => {
+    let n = 0;
+    nextResponse = () => (n++ === 0 ? { error: { error_code: 6, error_msg: 'Too many requests per second' } } : { response: 13 });
+    const result = await call('vk_messages_send', { peer_id: 42, message: 'once' });
+    expect(result).toEqual({ message_id: 13 });
+    expect(received).toHaveLength(2);
+    const ids = received.map((r) => new URLSearchParams(r.body).get('random_id'));
+    expect(ids[0]).toBe(ids[1]);
+  });
+
+  it('marks the whole conversation as read', async () => {
+    const result = await call('vk_messages_mark_as_read', { peer_id: 42 });
+    expect(result).toBe(1);
+    expect(received.at(-1).method).toBe('messages.markAsRead');
+    expect(lastParams()).toMatchObject({ peer_id: '42', mark_conversation_as_read: '1' });
+  });
+
+  it('explains a refusal to message someone who never wrote', async () => {
+    nextResponse = { error: { error_code: 901, error_msg: "Can't send messages for users without permission" } };
+    const result = await call('vk_messages_send', { peer_id: 42, message: 'hi' });
+    expect(result.error).toMatch(/901/);
+    expect(result.error).toMatch(/wrote to it first or allowed its messages/);
   });
 });
