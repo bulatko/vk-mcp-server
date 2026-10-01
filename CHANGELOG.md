@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+Breaking: Node 20 or newer. The server now runs on MCP SDK v2, which needs it;
+Node 18 left support in April 2025.
+
+- Stories: `vk_stories_post_photo` and `vk_stories_post_video` publish a story,
+  personal or on behalf of a community, from a URL or a local file (#9, thanks
+  @sergiygoncharov). A failed upload says so instead of surfacing a JSON parse
+  error, and nothing is saved from it
+- Speaks the 2026-07-28 revision of MCP to clients that ask for it, and the
+  2025 protocol to everyone else, from the same build. The era is settled per
+  connection by the opening exchange, so nothing changes for existing setups
+
 ## 0.6.1
 
 - The setup guide no longer promises something VK stopped giving. `--login`
