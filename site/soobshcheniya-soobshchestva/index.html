@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ИИ отвечает на сообщения сообщества ВКонтакте — VK MCP Server</title>
+  <meta name="description" content="Как поручить Claude разбирать сообщения сообщества ВКонтакте: список непрочитанных, пересказ каждого диалога, черновики ответов и отправка только одобренных. Бесплатно, без своих серверов.">
+  <link rel="canonical" href="https://bulatko.github.io/vk-mcp-server/soobshcheniya-soobshchestva/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="ИИ разбирает сообщения сообщества ВКонтакте">
+  <meta property="og:description" content="Claude перечисляет непрочитанные диалоги, пересказывает их и готовит ответы. Отправляет только то, что вы одобрили.">
+  <meta property="og:url" content="https://bulatko.github.io/vk-mcp-server/soobshcheniya-soobshchestva/">
+  <meta property="og:locale" content="ru_RU">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header>
+  <nav>
+    <a href="../">Главная</a>
+    <a href="./" aria-current="page">Сообщения сообщества</a>
+    <a href="../tokeny-vk-api/">Какой токен нужен</a>
+    <a href="https://github.com/bulatko/vk-mcp-server">GitHub</a>
+  </nav>
+</header>
+<main>
+  <h1>ИИ-ассистент разбирает сообщения сообщества ВКонтакте</h1>
+  <p class="lead">Если вы ведёте сообщество, входящие копятся быстрее, чем на них отвечаешь. VK MCP Server даёт
+  Claude доступ к сообщениям сообщества: он читает непрочитанное, пересказывает и готовит ответы, а отправляет
+  только после вашего «да».</p>
+
+  <h2>Как это выглядит</h2>
+  <p>Вы пишете ассистенту обычным текстом:</p>
+  <div class="note">Разбери входящие сообщества. Отвечай дружелюбно и коротко.</div>
+  <p>Ассистент:</p>
+  <ol>
+    <li>получает список непрочитанных диалогов;</li>
+    <li>читает переписку в каждом и называет человека по имени;</li>
+    <li>по каждому диалогу пишет коротко: кто, что хочет, черновик ответа; похожие вопросы группирует;</li>
+    <li>ждёт вашего решения: отправить как есть, поправить или пропустить;</li>
+    <li>отправляет одобренные ответы от имени сообщества и отмечает диалоги прочитанными.</li>
+  </ol>
+  <p>Для этого в сервере есть готовый сценарий <code>community_inbox</code> — в Claude Desktop он появляется в списке
+  промптов, остаётся выбрать его и указать тон ответов.</p>
+
+  <h2>Инструменты</h2>
+  <table>
+    <tr><th>Инструмент</th><th>Что делает</th></tr>
+    <tr><td><code>vk_messages_get_conversations</code></td><td>Диалоги сообщества, новые сверху. Фильтр <code>unread</code> — то, что ждёт ответа; есть ещё «без ответа» и «важные»</td></tr>
+    <tr><td><code>vk_messages_get_history</code></td><td>Переписка в одном диалоге</td></tr>
+    <tr><td><code>vk_messages_send</code></td><td>Ответ от имени сообщества. Помечен как запись — клиент спросит подтверждение</td></tr>
+    <tr><td><code>vk_messages_mark_as_read</code></td><td>Отметить диалог прочитанным</td></tr>
+  </table>
+
+  <h2>Что нужно</h2>
+  <ul>
+    <li><b>Токен сообщества</b> с правом <code>messages</code>: Управление → Работа с API → Ключи доступа → Создать ключ.</li>
+    <li><b>Включённые сообщения</b> в настройках сообщества.</li>
+    <li>Клиент с поддержкой MCP: Claude Desktop, Claude Code, Cursor, VS Code и другие. Как подключить — <a href="../#ustanovka">на главной</a>.</li>
+  </ul>
+
+  <h2>Ограничения ВКонтакте</h2>
+  <ul>
+    <li>Сообщество может написать только тому, кто написал первым или разрешил сообщения от сообщества. Иначе
+    ВКонтакте вернёт ошибку 901, и ассистент так и скажет.</li>
+    <li>Если ВКонтакте попросит подождать из-за частых запросов, сервер повторит отправку сам. Дважды сообщение не
+    уйдёт: у каждого ответа свой <code>random_id</code>, и повтор с тем же номером ВКонтакте отбрасывает.</li>
+  </ul>
+
+  <h2>Безопасность</h2>
+  <p>Сервер работает у вас на компьютере. Токен сообщества хранится в настройках вашего клиента и уходит только в
+  API ВКонтакте. Отправка сообщения — действие, которое клиент подтверждает у вас; в сценарии
+  <code>community_inbox</code> ассистенту прямо сказано не отправлять ничего, что вы не видели.</p>
+  <p><a class="cta" href="../#ustanovka">Подключить</a></p>
+</main>
+<footer>
+  VK MCP Server · <a href="https://github.com/bulatko/vk-mcp-server">GitHub</a> ·
+  <a href="https://www.npmjs.com/package/vk-mcp-server">npm</a> · лицензия MIT. Проект не связан с VK и не одобрен ею.
+</footer>
+</body>
+</html>

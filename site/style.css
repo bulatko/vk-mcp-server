@@ -1,0 +1,42 @@
+:root {
+  --bg: #fff;
+  --fg: #1d1f23;
+  --muted: #5f6670;
+  --accent: #0077ff;
+  --card: #f3f5f8;
+  --line: #e2e5ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #16181c; --fg: #e8eaed; --muted: #9aa1ab; --accent: #4c9bff; --card: #1f2227; --line: #2c3036; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main, header, footer { max-width: 780px; margin: 0 auto; padding: 0 20px; }
+header { padding-top: 28px; }
+nav { display: flex; gap: 18px; flex-wrap: wrap; font-size: 15px; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover, nav a[aria-current] { color: var(--accent); }
+h1 { font-size: 34px; line-height: 1.2; margin: 28px 0 12px; }
+h2 { font-size: 24px; margin: 40px 0 12px; }
+h3 { font-size: 19px; margin: 28px 0 8px; }
+p.lead { font-size: 20px; color: var(--muted); margin-top: 0; }
+a { color: var(--accent); }
+code { background: var(--card); padding: 1px 6px; border-radius: 5px; font-size: 0.92em; }
+pre { background: var(--card); padding: 14px 16px; border-radius: 10px; overflow-x: auto; font-size: 14px; line-height: 1.5; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; margin: 12px 0; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.cta { display: inline-block; background: var(--accent); color: #fff; padding: 10px 18px; border-radius: 10px; text-decoration: none; font-weight: 600; margin: 6px 10px 6px 0; }
+.cta.secondary { background: var(--card); color: var(--fg); }
+.shot { display: block; max-width: 100%; border-radius: 12px; margin: 18px auto; border: 1px solid var(--line); }
+.note { background: var(--card); border-left: 4px solid var(--accent); padding: 12px 16px; border-radius: 8px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 14px 0; }
+.grid div { background: var(--card); border-radius: 12px; padding: 14px 16px; }
+.grid b { display: block; margin-bottom: 4px; }
+footer { color: var(--muted); font-size: 14px; padding: 40px 20px 50px; border-top: 1px solid var(--line); margin-top: 50px; }
