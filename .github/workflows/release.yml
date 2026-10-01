@@ -73,6 +73,14 @@ jobs:
           # OIDC proves this workflow runs in the repository that owns the
           # io.github.<owner>/* namespace — no token to store or refresh.
           ./mcp-publisher login github-oidc
+          # The registry checks the version against npm, and a package published
+          # seconds ago is not visible there yet: 0.7.0 failed exactly that way
+          # five seconds after npm accepted it. Wait for npm to show it first.
+          VERSION="${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 18); do
+            npm view "vk-mcp-server@$VERSION" version >/dev/null 2>&1 && break
+            echo "waiting for npm to show $VERSION ($i/18)"; sleep 10
+          done
           ./mcp-publisher publish
 
       - name: Create the GitHub release
