@@ -104,6 +104,8 @@ export async function runCheck() {
     ['read your communities', 'groups.get', { count: 1 }, 'vk_groups_get'],
     ['read your friends', 'friends.get', { count: 1 }, 'vk_friends_get'],
     ['read your newsfeed', 'newsfeed.get', { count: 1 }, 'vk_newsfeed_get'],
+    // Only a community token has an inbox; the service key cannot stand in here.
+    ['read community messages', 'messages.getConversations', { count: 1 }, 'vk_messages_get_conversations, vk_messages_get_history'],
   ];
 
   if (fallback) {

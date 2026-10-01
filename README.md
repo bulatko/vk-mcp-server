@@ -46,10 +46,13 @@
 
 ## Features
 
-- **21 tools** across users, walls, communities, photos, stories, likes and statistics
+- **25 tools** across users, walls, communities, photos, stories, community
+  messages, likes and statistics
+- **Your community's inbox**: list unread conversations, read them, and reply
+  as the community — the assistant drafts, you approve, it sends
 - **Read and write as a community**: with a community token and a service key
   together, the assistant reads walls, profiles and communities and posts,
-  comments and publishes stories as your community. Writes are marked as such
+  comments, publishes stories and answers messages as your community. Writes are marked as such
   so your client can ask first. Some tools (search, likes, statistics, editing)
   need a full user token, which VK no longer issues to new apps — the
   [setup guide](docs/SETUP.md) lists exactly what each token reaches
@@ -64,7 +67,7 @@
   communities with their banner and size, profiles with avatar and following.
   Everywhere else it behaves exactly as before
 - **Prompts**: ready-made workflows — community digest, engagement report,
-  audience snapshot, community search
+  audience snapshot, community search, community inbox
 - **Resilient**: request timeouts, automatic backoff when VK rate-limits, and
   clear messages for captchas and HTTP failures
 - **Honest about tokens**: VK has three kinds and they differ enormously in
@@ -290,6 +293,19 @@ still asking before a post is edited or deleted.
 | `vk_stories_post_photo` | ✏️ Publish a photo story, personal or on behalf of a community |
 | `vk_stories_post_video` | ✏️ Publish a video story, personal or on behalf of a community |
 
+### Community messages
+
+Need a community token with the `messages` right, and messages switched on in
+the community settings. VK lets a community write only to people who wrote to
+it first or allowed its messages.
+
+| Tool | Description |
+|------|-------------|
+| `vk_messages_get_conversations` | List the inbox, newest first; `filter: "unread"` shows what waits for a reply |
+| `vk_messages_get_history` | Read one conversation |
+| `vk_messages_send` | ✏️ Reply as the community — reaches a real person, so clients should ask first |
+| `vk_messages_mark_as_read` | ✏️ Mark a conversation as read |
+
 ### Other
 
 | Tool | Description |
@@ -311,6 +327,7 @@ community, and the model knows which tools to use.
 | `audience_snapshot` | Samples members and describes the audience by sex, city and activity |
 | `publish_post` | Drafts a post in the community's own tone, shows it for approval, publishes it |
 | `find_communities` | Searches communities on a topic and compares the candidates |
+| `community_inbox` | Goes through unread messages, summarises each and drafts replies; sends only what you approve |
 
 ## Usage Examples
 
