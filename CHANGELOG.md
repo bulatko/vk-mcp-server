@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 Breaking: Node 20 or newer. The server now runs on MCP SDK v2, which needs it;
 Node 18 left support in April 2025.
