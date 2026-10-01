@@ -35,7 +35,8 @@
       ],
       "env": {
         "VK_ACCESS_TOKEN": "${user_config.vk_access_token}",
-        "VK_TIMEOUT_MS": "${user_config.vk_timeout_ms}"
+        "VK_TIMEOUT_MS": "${user_config.vk_timeout_ms}",
+        "VK_SERVICE_KEY": "${user_config.vk_service_key}"
       }
     }
   },
@@ -43,9 +44,16 @@
     "vk_access_token": {
       "type": "string",
       "title": "VK access token",
-      "description": "Use a community token if you want the assistant to post: open a community you manage → Manage → API usage → Access tokens → Create token, ticking 'wall' and 'photos'. It never expires, needs no app, and is the only kind VK still lets write. For public reads only, `npx vk-mcp-server --login <APP_ID>` signs you in — but that token cannot post, upload or read friends and statistics (VK answers error 1051). Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md",
+      "description": "To let the assistant post, use a community token: open a community you manage → Manage → API usage → Access tokens → Create token, ticking wall, photos, stories, messages and manage. It never expires and needs no app. It posts, comments and publishes stories as the community; VK refuses it wall reads, so add the service key below for those. Full guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md",
       "sensitive": true,
       "required": true
+    },
+    "vk_service_key": {
+      "type": "string",
+      "title": "VK service key (optional)",
+      "description": "The service key from your VK app's settings page. With it, reads the access token is refused (walls, under a community token) are made with the key. It is never used to write.",
+      "sensitive": true,
+      "required": false
     },
     "vk_timeout_ms": {
       "type": "number",
@@ -59,7 +67,7 @@
   "prompts_generated": true,
   "compatibility": {
     "runtimes": {
-      "node": ">=18.0.0"
+      "node": ">=20.0.0"
     }
   }
 }

@@ -6,16 +6,8 @@
  * Позволяет AI-ассистентам взаимодействовать с VK через стандартизированный интерфейс
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ListPromptsRequestSchema,
-  GetPromptRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { Server } from '@modelcontextprotocol/server';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -55,7 +47,14 @@ const ERROR_HINTS = {
   15: 'Access denied. The owner may have restricted this data (a private profile, or a community that hides its members), or the token belongs to an account without the rights to see it.',
   17: 'VK wants the account validated. Sign in to vk.com in a browser, complete the check, then retry.',
   18: 'That user is deleted or banned.',
-  27: 'Community authorisation failed. Create a token under Manage → API usage → Access tokens in the community you want to act as.',
+  // Checked against the live API (a community token with every right ticked):
+  // it posts, comments, publishes stories and handles messages, and is refused
+  // reading walls, editing or deleting posts, wall photo uploads and statistics.
+  // VK keeps those for user tokens, which it no longer issues to new apps.
+  27:
+    'A community token cannot call this method. It can post, comment, publish stories and handle community messages, ' +
+    'but VK keeps reading walls, editing or deleting posts, uploading wall photos and statistics for user tokens. ' +
+    'For reads, also set VK_SERVICE_KEY (the service key from your VK app page): the server then makes them with the key.',
   28:
     'This method needs a community token; neither a service key nor a VK ID token can call it. ' +
     'Create one in the community you want to act as: Manage → API usage → Access tokens, ticking wall and photos.',
@@ -69,11 +68,12 @@ const ERROR_HINTS = {
   // this method at all. Both kinds we can obtain hit it — a service key, and a
   // VK ID token from `--login`, which VK issues for signing in rather than for
   // the API. There is no scope to add and no flag to flip; the answer is a
-  // community token, which is the one kind that still reaches these methods.
+  // community token, which reaches the writes a community makes (see 27).
   1051:
     'This method is closed to the kind of token that made the call. ' +
     'A service key only reads public data, and a VK ID token (vk2.a…, what `--login` returns) signs you in but cannot call most API methods — VK retired the flow that issued full user tokens. ' +
-    'Use a community token instead: open a community you manage → Manage → API usage → Access tokens → Create token, ticking wall and photos. It posts, edits and uploads as that community.',
+    'To post, use a community token instead: open a community you manage → Manage → API usage → Access tokens → Create token. ' +
+    'It posts, comments, publishes stories and handles messages as that community; editing, deleting and wall photo uploads stay closed to it.',
 };
 
 /**
@@ -83,7 +83,7 @@ const ERROR_HINTS = {
  * whoever is reading the chat, not to a terminal nobody is watching.
  */
 const NO_TOKEN_MESSAGE =
-  'No VK token configured. This server needs VK_ACCESS_TOKEN set in its environment. ' +
+  'No VK token configured. This server needs VK_ACCESS_TOKEN (or, for public reads only, VK_SERVICE_KEY) set in its environment. ' +
   'Run `npx vk-mcp-server --login <APP_ID>` to obtain one through VK ID in your browser, ' +
   'or follow https://github.com/bulatko/vk-mcp-server/blob/main/docs/SETUP.md. ' +
   'Listing tools works without a token; calling them does not.';
@@ -104,21 +104,68 @@ const ERROR_SUBCODE_HINTS = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Codes that mean "this kind of token may not call this method" — not that the
+ * request was wrong, and not that anything happened. 27: a community token
+ * asked for a user method (reading a wall, say). 1051: a VK ID token asked for
+ * a method VK keeps from it. Both are refusals before execution, which is what
+ * makes it safe to put the same request to the other token.
+ */
+const WRONG_TOKEN_KIND = new Set([27, 1051]);
+
 class VKClient {
-  constructor(accessToken) {
+  /**
+   * @param accessToken the token the user acts with — usually a community
+   *   token, which posts, comments and handles messages but cannot read walls
+   * @param serviceKey optional app service key, which reads public data and
+   *   nothing else. With both set, reads the first one is refused go to the key
+   */
+  constructor(accessToken, serviceKey) {
     this.accessToken = accessToken;
+    this.serviceKey = serviceKey;
     this.apiVersion = VK_API_VERSION;
+    /** Methods the access token was refused and the service key answered. */
+    this.servedByKey = new Set();
   }
 
-  async call(method, params = {}, attempt = 0) {
+  async call(method, params = {}) {
     // Every path to VK goes through here, including the two-step photo upload,
     // so one check covers the whole tool surface.
-    if (!this.accessToken) throw new Error(NO_TOKEN_MESSAGE);
+    if (!this.accessToken && !this.serviceKey) throw new Error(NO_TOKEN_MESSAGE);
+    if (!this.accessToken) return this.request(method, params, this.serviceKey);
+    if (this.serviceKey && this.servedByKey.has(method)) {
+      return this.request(method, params, this.serviceKey);
+    }
 
+    try {
+      return await this.request(method, params, this.accessToken);
+    } catch (error) {
+      if (!this.serviceKey || !WRONG_TOKEN_KIND.has(error.vkCode)) throw error;
+      let result;
+      try {
+        result = await this.request(method, params, this.serviceKey);
+      } catch (keyError) {
+        // The key cannot do it either: a write, or one of the reads VK closes
+        // to service keys too (search, likes, photos). The first refusal is the
+        // one that explains the token; say the key was tried, or the hint to
+        // set it reads as advice already followed.
+        if (WRONG_TOKEN_KIND.has(keyError.vkCode) || keyError.vkCode === 28) {
+          error.message +=
+            ` VK_SERVICE_KEY is set and was refused too (error ${keyError.vkCode}): ` +
+            'no token VK issues to new apps reaches this method.';
+        }
+        throw error;
+      }
+      this.servedByKey.add(method);
+      return result;
+    }
+  }
+
+  async request(method, params, token, attempt = 0) {
     const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null));
     const body = new URLSearchParams({
       ...clean,
-      access_token: this.accessToken,
+      access_token: token,
       v: this.apiVersion,
     });
 
@@ -151,7 +198,7 @@ class VKClient {
       // rather than surfacing a failure the caller can do nothing about.
       if (code === VK_ERROR_RATE_LIMIT && attempt < MAX_RETRIES) {
         await sleep(RETRY_BASE_MS * 2 ** attempt);
-        return this.call(method, params, attempt + 1);
+        return this.request(method, params, token, attempt + 1);
       }
 
       if (code === VK_ERROR_CAPTCHA) {
@@ -162,7 +209,9 @@ class VKClient {
       }
 
       const hint = ERROR_SUBCODE_HINTS[data.error.error_subcode] || ERROR_HINTS[code];
-      throw new Error(`VK API Error ${code}: ${msg}${hint ? ` — ${hint}` : ''}`);
+      const error = new Error(`VK API Error ${code}: ${msg}${hint ? ` — ${hint}` : ''}`);
+      error.vkCode = code;
+      throw error;
     }
 
     return data.response;
@@ -307,7 +356,10 @@ Usage:
   npx vk-mcp-server --help          this message
 
 Environment:
-  VK_ACCESS_TOKEN   required for tool calls; the server starts and lists tools without it
+  VK_ACCESS_TOKEN   the token tools act with, usually a community token; the server
+                    starts and lists tools without it
+  VK_SERVICE_KEY    optional app service key; reads the access token is refused
+                    (a wall, under a community token) are made with it instead
   VK_TIMEOUT_MS     abort a VK request after this many ms (default 30000)
   VK_API_BASE       point at an API mirror or proxy
   VK_LOGIN_PORT     local port used by --login (default 8790)
@@ -324,8 +376,12 @@ Docs: https://github.com/bulatko/vk-mcp-server`);
 // with a message on a stream no chat window shows. So we start regardless, and
 // the first tool call is what explains the missing token, in the chat.
 const VK_ACCESS_TOKEN = process.env.VK_ACCESS_TOKEN;
+// A community token posts but cannot read a wall; a service key reads but
+// cannot post. Neither covers what someone running a community needs, so
+// both can be set, and VKClient sends each read the token refuses to the key.
+const VK_SERVICE_KEY = process.env.VK_SERVICE_KEY;
 
-const vk = new VKClient(VK_ACCESS_TOKEN);
+const vk = new VKClient(VK_ACCESS_TOKEN, VK_SERVICE_KEY);
 
 // ============================================
 // APP UI (MCP Apps)
@@ -1252,86 +1308,95 @@ const prompts = [
 // SERVER SETUP
 // ============================================
 
-const server = new Server(
-  { name: 'vk-mcp-server', version: VERSION },
-  { capabilities: { tools: {}, prompts: {}, resources: {} } }
-);
+// One instance per connection. serveStdio decides the protocol era from the
+// opening exchange (initialize for 2025 clients, server/discover for the
+// 2026-07-28 revision) and pins the instance this factory returns, so the
+// same handlers serve both.
+function buildServer() {
+  const server = new Server(
+    { name: 'vk-mcp-server', version: VERSION },
+    { capabilities: { tools: {}, prompts: {}, resources: {} } }
+  );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+  server.setRequestHandler('tools/list', async () => ({ tools }));
 
-server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-  resources: UI_RESOURCES.map(({ file, ...resource }) => resource),
-}));
+  server.setRequestHandler('resources/list', async () => ({
+    resources: UI_RESOURCES.map(({ file, ...resource }) => resource),
+  }));
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  const resource = UI_RESOURCES.find((r) => r.uri === request.params.uri);
-  if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
+  server.setRequestHandler('resources/read', async (request) => {
+    const resource = UI_RESOURCES.find((r) => r.uri === request.params.uri);
+    if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
 
-  const text = await readFile(path.join(UI_DIR, resource.file), 'utf8');
-  return {
-    contents: [
-      { uri: resource.uri, mimeType: resource.mimeType, text, _meta: resource._meta },
-    ],
-  };
-});
-
-server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-  prompts: prompts.map(({ build, ...prompt }) => prompt),
-}));
-
-server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-  const prompt = prompts.find((p) => p.name === request.params.name);
-  if (!prompt) throw new Error(`Unknown prompt: ${request.params.name}`);
-
-  const args = request.params.arguments || {};
-  const missing = (prompt.arguments || [])
-    .filter((a) => a.required && !args[a.name])
-    .map((a) => a.name);
-  if (missing.length) {
-    throw new Error(`Missing required argument(s) for ${prompt.name}: ${missing.join(', ')}`);
-  }
-
-  return {
-    description: prompt.description,
-    messages: [
-      { role: 'user', content: { type: 'text', text: prompt.build(args) } },
-    ],
-  };
-});
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  try {
-    const result = await handleToolCall(name, args || {});
-    const pagination = paginationFor(args || {}, result);
-    const payload = pagination ? { ...result, pagination } : result;
-    const response = {
-      // Text stays for clients that do not read structuredContent yet.
-      content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-    };
-    if (OUTPUT_SCHEMAS[name]) {
-      response.structuredContent = toStructuredContent(payload);
-    }
-    return response;
-  } catch (error) {
-    // A failed VK call is a tool execution error, not a protocol error: the
-    // model sees it, can explain it or retry with different arguments. Without
-    // isError the client treats the message as a successful result.
+    const text = await readFile(path.join(UI_DIR, resource.file), 'utf8');
     return {
-      content: [{ type: 'text', text: JSON.stringify({ error: error.message }, null, 2) }],
-      isError: true,
+      contents: [
+        { uri: resource.uri, mimeType: resource.mimeType, text, _meta: resource._meta },
+      ],
     };
-  }
-});
+  });
+
+  server.setRequestHandler('prompts/list', async () => ({
+    prompts: prompts.map(({ build, ...prompt }) => prompt),
+  }));
+
+  server.setRequestHandler('prompts/get', async (request) => {
+    const prompt = prompts.find((p) => p.name === request.params.name);
+    if (!prompt) throw new Error(`Unknown prompt: ${request.params.name}`);
+
+    const args = request.params.arguments || {};
+    const missing = (prompt.arguments || [])
+      .filter((a) => a.required && !args[a.name])
+      .map((a) => a.name);
+    if (missing.length) {
+      throw new Error(`Missing required argument(s) for ${prompt.name}: ${missing.join(', ')}`);
+    }
+
+    return {
+      description: prompt.description,
+      messages: [
+        { role: 'user', content: { type: 'text', text: prompt.build(args) } },
+      ],
+    };
+  });
+
+  server.setRequestHandler('tools/call', async (request) => {
+    const { name, arguments: args } = request.params;
+
+    try {
+      const result = await handleToolCall(name, args || {});
+      const pagination = paginationFor(args || {}, result);
+      const payload = pagination ? { ...result, pagination } : result;
+      const response = {
+        // Text stays for clients that do not read structuredContent yet.
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+      };
+      if (OUTPUT_SCHEMAS[name]) {
+        response.structuredContent = toStructuredContent(payload);
+      }
+      return response;
+    } catch (error) {
+      // A failed VK call is a tool execution error, not a protocol error: the
+      // model sees it, can explain it or retry with different arguments. Without
+      // isError the client treats the message as a successful result.
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: error.message }, null, 2) }],
+        isError: true,
+      };
+    }
+  });
+
+  return server;
+}
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  serveStdio(buildServer);
   console.error('VK MCP Server running on stdio');
-  if (!VK_ACCESS_TOKEN) {
+  if (!VK_ACCESS_TOKEN && !VK_SERVICE_KEY) {
     console.error('No VK_ACCESS_TOKEN set — tools are listed but will fail when called.');
-    console.error('Get one with `npx vk-mcp-server --login <APP_ID>`.');
+    console.error('See docs/SETUP.md: a community token takes three clicks in the community settings.');
+  } else if (!VK_ACCESS_TOKEN) {
+    console.error('Only VK_SERVICE_KEY set — public reads work, anything that writes will be refused.');
   }
 }
 

@@ -494,6 +494,18 @@
 
         if (message.method === 'ui/notifications/tool-result') {
           render(message.params);
+          return;
+        }
+
+        // Requests from the host carry an id and wait for an answer. The card
+        // holds no state, so teardown is acknowledged at once; anything else
+        // gets "method not found" rather than leaving the host to time out.
+        if (message.method && message.id !== undefined) {
+          if (message.method === 'ui/resource-teardown') {
+            send({ id: message.id, result: {} });
+          } else {
+            send({ id: message.id, error: { code: -32601, message: `Method not found: ${message.method}` } });
+          }
         }
       });
 

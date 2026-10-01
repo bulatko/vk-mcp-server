@@ -1,17 +1,30 @@
 # Getting a VK token
 
-**Short version: if you want the assistant to do anything beyond reading public
-pages, you need a community token.** It is three clicks, needs no app, and is
-the only kind VK still lets post, edit or upload.
+**Short version: to let the assistant post, you need a community token; to let
+it read walls as well, add a service key next to it.** The community token is
+three clicks and needs no app; the service key is on any VK app's page.
 
 That is not a preference, it is what VK now permits. Three kinds of token exist
-and here is what each actually reaches, measured against the live API:
+and here is what each actually reaches, measured against the live API in
+October 2026 (a community token with every right ticked):
 
 | Token | How you get it | What it can do |
 |---|---|---|
-| **Community** | Community → Manage → API usage → Access tokens | Everything, as the community: read walls and members, post, edit, delete, comment, upload photos, read statistics |
-| **VK ID** (`vk2.a…`) | `npx vk-mcp-server --login` | Read public profiles, walls and community info. Nothing else — see below |
-| **Service key** | App page, on any app | The same three reads, and nothing else |
+| **Community** | Community → Manage → API usage → Access tokens | As the community: post, comment, publish stories, handle community messages; read profiles and community info. **Not** read walls, edit or delete posts, upload wall photos or read statistics — VK refuses those with error 27 |
+| **Service key** | App page, on any app | Read public profiles, walls, community info and visible member lists. Nothing that writes |
+| **VK ID** (`vk2.a…`) | `npx vk-mcp-server --login` | The same public reads as a service key. Nothing else — see below |
+
+**Set both, and the server combines them.** Give the community token as
+`VK_ACCESS_TOKEN` and the service key as `VK_SERVICE_KEY`: every call goes out
+with the community token first, and a read VK refuses it (a wall, say) is
+repeated with the key. Writes never go to the key. That gives you posting,
+comments, stories and messages together with reading walls — the most VK lets
+anyone reach today.
+
+What stays out of reach for every token VK issues to a new app: editing or
+deleting posts, uploading photos to a wall, statistics, likes, photo albums,
+search and the newsfeed. VK keeps them for full user tokens, which it no longer
+grants (see below).
 
 **The catch with VK ID tokens.** `--login` walks VK's current sign-in flow and
 hands you a token, and it looks like the full user token older guides describe.
@@ -32,8 +45,8 @@ need — and then the service key does the same with less ceremony.
 1. Open the community you manage → **Manage** (right-hand menu).
 2. Find **API usage** — recent VK builds file it under **Advanced** in that
    menu — then **Access tokens** → **Create token**.
-3. Tick **wall**, **photos** and, if you want the assistant to see statistics,
-   **manage**. Confirm, and copy the token.
+3. Tick **wall**, **photos**, **stories**, **messages** and **manage**. Confirm,
+   and copy the token.
 
 The page lives in the full web version; the mobile app has no API section at
 all, so on a phone you need a browser with "desktop site" turned on.
@@ -48,7 +61,15 @@ VK_ACCESS_TOKEN=vk1.a... npx vk-mcp-server --check
 ```
 
 A community token acts *as the community*. It cannot read your friends or your
-newsfeed — that is expected, not a misconfiguration.
+newsfeed, and it cannot read a wall — that is VK, not a misconfiguration. For
+wall reads, add the service key — it sits on the settings page of any VK app
+you own, labelled service token or service access key (create an app if you
+have none; step 1 of the VK ID section shows how) — and pass it as
+`VK_SERVICE_KEY`:
+
+```bash
+VK_ACCESS_TOKEN=vk1.a... VK_SERVICE_KEY=... npx vk-mcp-server --check
+```
 
 ---
 
@@ -182,5 +203,6 @@ types you have, who it acts as, and what it can reach.
 | `error 8: Application is blocked` | The app that issued the token is blocked. Create your own (step 1 above) and issue a fresh token. |
 | `error 5` with `subcode 1130` | IP binding — see [Remote installs](#remote-installs). |
 | `error 5` otherwise | The token expired or was revoked. Run `--login` again. |
-| `error 1051` or `error 28` | The token's kind is not allowed to call that method — a service key and a VK ID token both hit this. Only a community token reaches the rest. |
+| `error 27` | A community token asked for something VK keeps from it — reading a wall, say. Set `VK_SERVICE_KEY` and reads go to the key; edits, deletions and statistics stay closed to every token a new app can get. |
+| `error 1051` or `error 28` | The token's kind is not allowed to call that method — a service key and a VK ID token both hit this. To post, use a community token. |
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |

@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+Breaking: Node 20 or newer. The server now runs on MCP SDK v2, which needs it;
+Node 18 left support in April 2025.
+
+- Stories: `vk_stories_post_photo` and `vk_stories_post_video` publish a story,
+  personal or on behalf of a community, from a URL or a local file (#9, thanks
+  @sergiygoncharov). A failed upload says so instead of surfacing a JSON parse
+  error, and nothing is saved from it
+- Two tokens at once. A community token posts but VK refuses it wall reads; a
+  service key reads but cannot post. Set the community token as
+  `VK_ACCESS_TOKEN` and the key as `VK_SERVICE_KEY`, and every read the token
+  is refused (error 27) is repeated with the key. Writes never go to the key,
+  and when the key is refused too the error says so instead of advising to set
+  it. `--check` reports reads it reaches through the key
+- The guide promised more than VK gives. Checked against the live API with a
+  community token holding every right: it posts, comments and publishes
+  stories, and VK refuses it reading walls, editing or deleting posts, wall
+  photo uploads and statistics. README, the setup guide, the hints on errors 27
+  and 1051 and the bundle's settings now say exactly that
+- Speaks the 2026-07-28 revision of MCP to clients that ask for it, and the
+  2025 protocol to everyone else, from the same build. The era is settled per
+  connection by the opening exchange, so nothing changes for existing setups
+
 ## 0.6.1
 
 - The setup guide no longer promises something VK stopped giving. `--login`
