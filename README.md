@@ -46,7 +46,7 @@
 
 ## Features
 
-- **19 tools** across users, walls, communities, photos, likes and statistics
+- **21 tools** across users, walls, communities, photos, stories, likes and statistics
 - **Read and write**: search and read freely; posting, editing and deleting are
   marked as write operations so your client can ask first
 - **Structured output**: every tool declares an output schema, so the model gets
@@ -261,6 +261,13 @@ still asking before a post is edited or deleted.
 |------|-------------|
 | `vk_photos_get` | Get photos from albums |
 | `vk_photos_upload_wall` | ✏️ Upload a photo and get an attachment string for `vk_wall_post` |
+
+### Stories
+
+| Tool | Description |
+|------|-------------|
+| `vk_stories_post_photo` | ✏️ Publish a photo story, personal or on behalf of a community |
+| `vk_stories_post_video` | ✏️ Publish a video story, personal or on behalf of a community |
 
 ### Other
 

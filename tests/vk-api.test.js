@@ -11,7 +11,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 
 const SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'index.js');
 
@@ -32,6 +34,12 @@ const defaultFor = (method) => {
   if (method === 'groups.getById') return { response: { groups: [] } };
   if (method === 'photos.getWallUploadServer') return { response: { upload_url: 'http://127.0.0.1:1/upload' } };
   if (method === 'photos.saveWallPhoto') return { response: [{ owner_id: -1, id: 2 }] };
+  // Unlike the wall photo upload server above, these point back at our own fake
+  // server so the story tests can exercise the whole three-step flow, upload
+  // POST included, instead of stopping at the first VK call.
+  if (method === 'stories.getPhotoUploadServer' || method === 'stories.getVideoUploadServer') {
+    return { response: { upload_url: `http://127.0.0.1:${http.address().port}/upload-story` } };
+  }
   if (['users.get', 'stats.get'].includes(method)) return { response: [] };
   return { response: { count: 0, items: [] } };
 };
@@ -42,6 +50,10 @@ let nextResponse = null;
 let httpStatus = 200;
 /** Raw body override, for non-JSON responses. */
 let rawBody = null;
+/** HTTP status the fake story-upload endpoint answers with. */
+let uploadStoryStatus = 200;
+/** Body the fake story-upload endpoint answers with, once parsed to JSON. */
+let uploadStoryResponse = null;
 
 const call = async (name, args) => {
   const res = await client.callTool({ name, arguments: args });
@@ -56,6 +68,22 @@ beforeAll(async () => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
+      // Stands in for VK's upload endpoint too — a different host in
+      // production, but same-origin here is enough to exercise the multipart
+      // POST and its non-2xx path without a second server.
+      if (req.url.startsWith('/upload-story')) {
+        received.push({ method: 'upload-story', body });
+        res.statusCode = uploadStoryStatus;
+        if (uploadStoryStatus >= 400) {
+          res.setHeader('content-type', 'text/html');
+          res.end('<html>Bad Gateway</html>');
+          return;
+        }
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(uploadStoryResponse ?? { upload_result: 'dummy_upload_result' }));
+        return;
+      }
+
       const method = req.url.replace(/^\/+/, '');
       received.push({ method, body });
       res.statusCode = httpStatus;
@@ -97,6 +125,8 @@ beforeEach(() => {
   nextResponse = null;
   httpStatus = 200;
   rawBody = null;
+  uploadStoryStatus = 200;
+  uploadStoryResponse = null;
 });
 
 describe('request shape', () => {
@@ -402,5 +432,56 @@ describe('pagination', () => {
     nextResponse = { response: { post_id: 42 } };
     const result = await call('vk_wall_post', { message: 'hi' });
     expect(result.pagination).toBeUndefined();
+  });
+});
+
+describe('stories upload', () => {
+  // A local file exercises the readFile branch of uploadStoryFile without a
+  // real network fetch — the upload POST itself still goes over HTTP, to the
+  // fake server above.
+  const fixture = path.join(os.tmpdir(), 'vk-mcp-server-story-fixture.jpg');
+
+  beforeAll(async () => {
+    await writeFile(fixture, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  });
+
+  afterAll(async () => {
+    await rm(fixture, { force: true });
+  });
+
+  it('publishes a photo story through get-upload-server, upload, save', async () => {
+    const result = await call('vk_stories_post_photo', { image: fixture });
+    expect(received.map((r) => r.method)).toEqual([
+      'stories.getPhotoUploadServer',
+      'upload-story',
+      'stories.save',
+    ]);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('publishes a video story through get-upload-server, upload, save', async () => {
+    const result = await call('vk_stories_post_video', { video: fixture });
+    expect(received.map((r) => r.method)).toEqual([
+      'stories.getVideoUploadServer',
+      'upload-story',
+      'stories.save',
+    ]);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('surfaces a clear error when the upload endpoint fails, instead of a JSON parse error', async () => {
+    uploadStoryStatus = 502;
+    const result = await call('vk_stories_post_photo', { image: fixture });
+    expect(result.error).toMatch(/502/);
+    expect(result.error).not.toMatch(/JSON|Unexpected token/i);
+    // stories.save must not run against a failed upload.
+    expect(received.map((r) => r.method)).not.toContain('stories.save');
+  });
+
+  it('reports a bad upload result instead of forwarding it to stories.save', async () => {
+    uploadStoryResponse = { some_other_field: true };
+    const result = await call('vk_stories_post_photo', { image: fixture });
+    expect(result.error).toMatch(/upload failed/i);
+    expect(received.map((r) => r.method)).not.toContain('stories.save');
   });
 });
