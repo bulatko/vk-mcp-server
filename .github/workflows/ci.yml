@@ -44,3 +44,26 @@ jobs:
 
       - name: Check syntax
         run: node --check src/index.js
+
+  # Glama and the Docker MCP Catalog build the server from this Dockerfile, so
+  # a base image the code has outgrown breaks the listing without a single test
+  # failing — which is how 0.7.0 shipped on node:18. Build it and speak MCP to it.
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t vk-mcp-server:ci .
+
+      - name: Answer initialize and list the tools
+        run: |
+          OUT=$(printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | timeout 30 docker run -i --rm vk-mcp-server:ci)
+          echo "$OUT" | head -c 400; echo
+          echo "$OUT" | grep -q '"serverInfo"' || { echo "::error::no initialize answer"; exit 1; }
+          echo "$OUT" | grep -q '"vk_messages_send"' || { echo "::error::tools/list incomplete"; exit 1; }
