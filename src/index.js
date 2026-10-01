@@ -568,7 +568,7 @@ const tools = [
   {
     name: 'vk_photos_upload_wall',
     title: 'Upload a photo for a post',
-    description: 'Upload a photo so it can be attached to a post. Takes a URL or a local file path, runs VK\'s three-step upload, and returns an attachment string like photo-1_2 to pass to vk_wall_post or vk_wall_edit. group_id is positive here, without the minus sign.',
+    description: 'Upload a photo so it can be attached to a post. Takes a URL or a local file path, runs VK\'s three-step upload, and returns an attachment string like photo-1_2 to pass to vk_wall_post or vk_wall_edit. group_id is positive here, without the minus sign. Needs a full user token: VK refuses a community token here (error 27), and has no other way for one to attach a photo to a post.',
     inputSchema: {
       type: 'object',
       properties: {

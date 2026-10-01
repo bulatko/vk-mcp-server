@@ -289,7 +289,7 @@ still asking before a post is edited or deleted.
 | Tool | Description |
 |------|-------------|
 | `vk_photos_get` | Get photos from albums |
-| `vk_photos_upload_wall` | ✏️ Upload a photo and get an attachment string for `vk_wall_post` |
+| `vk_photos_upload_wall` | ✏️ Upload a photo and get an attachment string for `vk_wall_post` — needs a full user token; VK refuses community tokens here |
 
 ### Stories
 
