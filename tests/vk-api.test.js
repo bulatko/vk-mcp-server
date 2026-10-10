@@ -329,10 +329,13 @@ describe('VK error handling', () => {
     expect(result.error).toMatch(/community token/i);
   });
 
-  it('tells the user to re-issue an expired token', async () => {
+  it('tells the user to check the pasted token, then re-create it where it came from', async () => {
     nextResponse = { error: { error_code: 5, error_msg: 'User authorization failed' } };
     const result = await call('vk_users_get', { user_ids: '1' });
-    expect(result.error).toMatch(/--login/);
+    expect(result.error).toMatch(/trailing comment/);
+    expect(result.error).toMatch(/API usage → Access tokens/);
+    // --login reissues only VK ID tokens, which cannot post
+    expect(result.error).not.toMatch(/--login/);
   });
 
   it('keeps serving after an error', async () => {

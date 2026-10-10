@@ -78,7 +78,7 @@
   reach. `--check` names which one you hold and probes what it can actually do,
   `--login` walks the VK ID flow for the reading kind, and every VK error
   carries the fix rather than the code alone
-- **Tested**: 84 tests driving the real server over the MCP protocol
+- **Tested**: 140+ tests driving the real server over the MCP protocol
 
 ## Quick Start
 
@@ -238,7 +238,7 @@ Common cases:
 | What you see | What it means |
 |--------------|---------------|
 | `error 8: Application is blocked` | The VK app that issued the token is blocked. Every token from it fails this way, however valid the token looks. Create your own app and issue a fresh token. |
-| `error 5: User authorization failed` | The token expired or was revoked — run `--login` again. |
+| `error 5: User authorization failed` | The token is not accepted: revoked, deleted or replaced by a newer one — or pasted with quotes, spaces or a trailing comment. Check it is the whole token; if so, create a fresh one where it came from (a community token: Manage → API usage → Access tokens). `--login` reissues only VK ID tokens, which cannot post. |
 | `error 27: Group authorization failed` | A community token asked for something VK keeps from it — reading a wall, say. Set `VK_SERVICE_KEY` and reads go to the key; edits, deletions and statistics stay closed. |
 | `error 1051` or `error 28` | A VK ID token or a service key asked for a method closed to it. To post, use a community token. |
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |
@@ -255,6 +255,13 @@ Tools marked ✏️ change something on VK — they post, edit, delete or join o
 behalf of whoever owns the access token. Each tool also carries MCP annotations
 (`readOnlyHint`, `destructiveHint`), so a client can auto-approve lookups while
 still asking before a post is edited or deleted.
+
+The model sees only the tools your token reaches. On start the server asks VK
+which token it holds — community, user, VK ID or service key — and leaves out
+the tools VK would refuse it, so the model does not discover the limits one
+error at a time. `vk_token_info` says which token it is and, for each tool
+left out, what would open it. With no token, or when VK cannot tell, every
+tool is listed.
 
 ### Users
 
@@ -311,6 +318,20 @@ it first or allowed its messages.
 | `vk_messages_send` | ✏️ Reply as the community — reaches a real person, so clients should ask first |
 | `vk_messages_mark_as_read` | ✏️ Mark a conversation as read |
 
+### Community events
+
+VK refuses a community token comments, likes and the wall, but sends them as
+events to a community that listens. Call `vk_events_listen` once: it turns on
+the community's Long Poll and the event types if they are off — leaving the API
+version alone when another bot already reads it — and starts receiving. VK
+keeps no history: you see what happens from that moment on, while the server
+runs. Deleting comments stays closed to a community token.
+
+| Tool | Description |
+|------|-------------|
+| `vk_events_listen` | ✏️ Start receiving new comments (text and ID), likes, posts and reposts, joins and leaves, messages |
+| `vk_events_get` | Read them by cursor; `wait` holds up to 25 s for the next one, so an agent can answer each new comment in a loop |
+
 ### Other
 
 | Tool | Description |
@@ -319,11 +340,16 @@ it first or allowed its messages.
 | `vk_newsfeed_get` | Get user's newsfeed |
 | `vk_likes_get` | Get users who liked an object, with reaction counts |
 | `vk_stats_get` | Get community statistics (admin only) |
+| `vk_token_info` | Which token is connected, which tools work with it, and what would open the rest |
 
 ## Prompts
 
 Prompts appear in your client as ready-made workflows — pick one, fill in the
 community, and the model knows which tools to use.
+
+Like the tools, the prompt list follows the token: a prompt is offered only
+when the token reaches the tools it relies on, and `publish_post` leaves out the
+steps (reading the wall, uploading the image) the token cannot take.
 
 | Prompt | What it does |
 |--------|--------------|

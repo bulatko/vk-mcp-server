@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.9.0
+
+- No hint sends a community-token user to `--login` any more. Error 5 and the
+  missing-token message used to recommend it, but it reissues only VK ID tokens,
+  which cannot post — a dead end for exactly the people managing a community.
+  Error 5 now also names the cause we hit ourselves: a token pasted with quotes
+  or a trailing comment fails exactly like a revoked one. The missing-token
+  message pointed at `blob/main/docs/SETUP.md`, which is a 404 (the branch is
+  `master`)
+- `vk_wall_post` under a community token posts on that community's wall when
+  `owner_id` is left out. VK put such a post on the token's own wall, which a
+  community does not have, and refused with error 214
+- Prompts follow the token like tools do: each names the tools it relies on and
+  is offered only when the token reaches them. `publish_post` drops the wall
+  read and the image upload when the token cannot do them, and says the image
+  cannot go into the post
+
+- The tool list follows the token. The server asks VK once which token it holds
+  (`groups.getTokenPermissions`, then `users.get`) and lists only the tools that
+  token reaches, together with `VK_SERVICE_KEY` when it is set: a community token
+  no longer sees `vk_wall_edit` or `vk_stats_get`, a service key no longer sees
+  the writes. The tables come from live measurements, not VK's schema, which
+  is wrong both ways. Left-out tools still answer if called, and with no token,
+  a rejected token or VK not answering within 5 s every tool stays listed.
+  Idea and first version: windbit's fork
+- `vk_token_info`: which token is connected, the community and rights of a
+  community token, which tools work, and for each of the others what would
+  open it
+- Community events: `vk_events_listen` and `vk_events_get`. A community token
+  is refused comments, likes and the wall, but VK's Bots Long Poll pushes them
+  as events: a new comment with its text and ID, who liked which post, who
+  joined or left (checked live). Listening turns on the community's Long Poll
+  and the event types when they are off, and leaves the API version alone when
+  another bot already reads it. Events are kept in a bounded buffer (500) and
+  read by cursor, with an optional wait of up to 25 s; polling stops when the
+  client hangs up. No history: only what happens while the server listens
+- Community messages switched off get their own hint (turn them on in the
+  community settings) instead of the one blaming someone's privacy settings
+
 ## 0.8.2
 
 - The bundle's manifest lists the tools. Directories that read the .mcpb
