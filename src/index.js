@@ -461,8 +461,9 @@ async function probeToken() {
 /**
  * Measured on the live API rather than read from VK's schema, which is wrong in
  * both directions — it has wall.post as user-only, and a community token posts.
- * The community token was checked with every right ticked (2026-10-01), the
- * service key on 2026-10-10; a VK ID token reads what a key reads (2026-07-26).
+ * The community token was checked with every right ticked (2026-10-01, again
+ * 2026-10-10), the service key on 2026-10-10; a VK ID token reads what a key
+ * reads (2026-07-26). Both read members only where the community shows them.
  * Tools in neither set are left to user tokens, which VK no longer issues to
  * new apps.
  */
