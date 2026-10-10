@@ -358,7 +358,8 @@ describe('without a token', () => {
     // The message has to name the variable and the way to get a value for it —
     // this text is all the user sees.
     expect(res.content[0].text).toMatch(/VK_ACCESS_TOKEN/);
-    expect(res.content[0].text).toMatch(/--login/);
+    expect(res.content[0].text).toMatch(/community token/);
+    expect(res.content[0].text).toMatch(/blob\/master\/docs\/SETUP\.md/);
 
     // And the server survives it, so the next call after they fix it works.
     expect((await bare.listTools()).tools.length).toBeGreaterThan(0);

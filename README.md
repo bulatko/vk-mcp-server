@@ -78,7 +78,7 @@
   reach. `--check` names which one you hold and probes what it can actually do,
   `--login` walks the VK ID flow for the reading kind, and every VK error
   carries the fix rather than the code alone
-- **Tested**: 84 tests driving the real server over the MCP protocol
+- **Tested**: 140+ tests driving the real server over the MCP protocol
 
 ## Quick Start
 
@@ -238,7 +238,7 @@ Common cases:
 | What you see | What it means |
 |--------------|---------------|
 | `error 8: Application is blocked` | The VK app that issued the token is blocked. Every token from it fails this way, however valid the token looks. Create your own app and issue a fresh token. |
-| `error 5: User authorization failed` | The token expired or was revoked — run `--login` again. |
+| `error 5: User authorization failed` | The token is not accepted: revoked, deleted or replaced by a newer one — or pasted with quotes, spaces or a trailing comment. Check it is the whole token; if so, create a fresh one where it came from (a community token: Manage → API usage → Access tokens). `--login` reissues only VK ID tokens, which cannot post. |
 | `error 27: Group authorization failed` | A community token asked for something VK keeps from it — reading a wall, say. Set `VK_SERVICE_KEY` and reads go to the key; edits, deletions and statistics stay closed. |
 | `error 1051` or `error 28` | A VK ID token or a service key asked for a method closed to it. To post, use a community token. |
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |
@@ -346,6 +346,10 @@ runs. Deleting comments stays closed to a community token.
 
 Prompts appear in your client as ready-made workflows — pick one, fill in the
 community, and the model knows which tools to use.
+
+Like the tools, the prompt list follows the token: a prompt is offered only
+when the token reaches the tools it relies on, and `publish_post` leaves out the
+steps (reading the wall, uploading the image) the token cannot take.
 
 | Prompt | What it does |
 |--------|--------------|

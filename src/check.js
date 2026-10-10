@@ -51,7 +51,12 @@ export async function runCheck() {
   if (self.error) {
     const { error_code: code, error_msg: msg } = self.error;
     console.error(`${NO} VK rejected the token: error ${code} — ${msg}\n`);
-    if (code === 5) console.error('   The token expired or was revoked. Issue a new one: npx vk-mcp-server --login <APP_ID>');
+    if (code === 5) {
+      // Not `--login`: it reissues only VK ID tokens, which cannot post.
+      console.error('   The token expired or was revoked — or was pasted with quotes, spaces or a trailing comment.');
+      console.error('   Check it is the whole token; if so, create a fresh one where it came from');
+      console.error('   (a community token: the community → Manage → API usage → Access tokens).');
+    }
     else if (code === 8) console.error('   The app that issued this token is blocked. Create your own app at https://vk.com/editapp?act=create and issue a fresh token.');
     else if (code === 1051 || code === 28) console.error('   This looks like a service token, which cannot call user methods.');
     process.exit(1);

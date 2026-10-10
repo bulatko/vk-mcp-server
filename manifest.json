@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "vk-mcp-server",
   "display_name": "VK",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "Read and post to VK (VKontakte) — walls, communities, users, photos and stats.",
   "long_description": "Connects an AI assistant to the VK (VKontakte) social network. Read walls, search users and communities, inspect members and reactions, pull community statistics, and — when you ask it to — publish posts, comments and photos.\n\nRead-only tools are marked as such, so a client can run lookups freely while still asking before anything is posted, edited or deleted.\n\nNeeds a VK access token, which you can create from your VK account in about a minute.",
   "author": {
@@ -85,7 +85,7 @@
     },
     {
       "name": "vk_wall_post",
-      "description": "Publish a post on a wall. To post in a community, set owner_id to the community ID with a minus sign (-123) and from_group true, otherwise it appears as your personal post on the community wall. Attach media with the attachment string that vk_photos_upload_wall returns. Returns the new post_id."
+      "description": "Publish a post on a wall. Under a community token, leave owner_id out and the post goes on that community's wall. Otherwise, to post in a community, set owner_id to the community ID with a minus sign (-123) and from_group true, or it appears as your personal post on the community wall. Attach media with the attachment string that vk_photos_upload_wall returns. Returns the new post_id."
     },
     {
       "name": "vk_wall_create_comment",

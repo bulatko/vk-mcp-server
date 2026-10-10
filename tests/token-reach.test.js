@@ -41,6 +41,7 @@ const answer = (token, method) => {
       }
       if (method === 'groups.getById') return { response: { groups: [{ id: 42, name: 'Тест', screen_name: 'club42' }] } };
       if (method === 'messages.getConversations') return refuse(15, 'Access denied: community messages are disabled');
+      if (method === 'wall.post') return { response: { post_id: 77 } };
       return groupAuth;
     case USER:
       if (method === 'users.get') return { response: [{ id: 7, first_name: 'Ivan' }] };
@@ -66,8 +67,9 @@ beforeAll(async () => {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       const method = req.url.replace(/^\/+/, '');
-      const token = new URLSearchParams(body).get('access_token');
-      received.push({ method, token });
+      const params = Object.fromEntries(new URLSearchParams(body));
+      const token = params.access_token;
+      received.push({ method, token, params });
       const reply = answer(token, method);
       if (!reply) {
         res.statusCode = 500;
@@ -237,5 +239,71 @@ describe('community messages switched off', () => {
     expect(isError).toBe(true);
     expect(body.error).toMatch(/Manage → Messages/);
     expect(body.error).not.toMatch(/private profile/);
+  });
+});
+
+const prompted = (tokens) => withServer(tokens, async (c) => (await c.listPrompts()).prompts.map((p) => p.name).sort());
+const promptText = (tokens, args) =>
+  withServer(tokens, async (c) => (await c.getPrompt({ name: 'publish_post', arguments: args })).messages[0].content.text);
+
+describe('prompts by token kind', () => {
+  it('offers a community token what it can carry out', async () => {
+    expect(await prompted({ VK_ACCESS_TOKEN: COMMUNITY })).toEqual(['audience_snapshot', 'community_inbox', 'publish_post']);
+  });
+
+  it('adds the wall-reading ones when a service key is set beside it', async () => {
+    expect(await prompted({ VK_ACCESS_TOKEN: COMMUNITY, VK_SERVICE_KEY: KEY })).toEqual([
+      'audience_snapshot',
+      'community_digest',
+      'community_inbox',
+      'engagement_report',
+      'publish_post',
+    ]);
+  });
+
+  it('offers a service key the reading ones', async () => {
+    expect(await prompted({ VK_SERVICE_KEY: KEY })).toEqual(['audience_snapshot', 'community_digest', 'engagement_report']);
+  });
+
+  it('offers a user token everything but the community inbox', async () => {
+    expect(await prompted({ VK_ACCESS_TOKEN: USER })).toEqual([
+      'audience_snapshot',
+      'community_digest',
+      'engagement_report',
+      'find_communities',
+      'publish_post',
+    ]);
+  });
+
+  it('offers every prompt without a token', async () => {
+    expect(await prompted({})).toHaveLength(6);
+  });
+
+  it('builds publish_post without the steps a community token cannot take, and says so about the image', async () => {
+    const text = await promptText({ VK_ACCESS_TOKEN: COMMUNITY }, { community: 'club42', about: 'news', image: 'a.jpg' });
+    expect(text).not.toMatch(/vk_wall_get/);
+    expect(text).not.toMatch(/vk_photos_upload_wall/);
+    expect(text).toMatch(/cannot go into the post/);
+  });
+
+  it('keeps those steps for a token that can take them', async () => {
+    const text = await promptText({ VK_ACCESS_TOKEN: USER }, { community: 'club42', about: 'news', image: 'a.jpg' });
+    expect(text).toMatch(/vk_wall_get/);
+    expect(text).toMatch(/vk_photos_upload_wall/);
+    expect(text).not.toMatch(/cannot go into the post/);
+  });
+});
+
+describe('vk_wall_post under a community token', () => {
+  it('posts on the community\'s own wall when owner_id is left out', async () => {
+    const { isError, body } = await withServer({ VK_ACCESS_TOKEN: COMMUNITY }, (c) => call(c, 'vk_wall_post', { message: 'hi' }));
+    expect(isError).toBe(false);
+    expect(body.post_id).toBe(77);
+    expect(received.find((r) => r.method === 'wall.post').params.owner_id).toBe('-42');
+  });
+
+  it('keeps an owner_id that was given', async () => {
+    await withServer({ VK_ACCESS_TOKEN: COMMUNITY }, (c) => call(c, 'vk_wall_post', { owner_id: -7, message: 'hi' }));
+    expect(received.find((r) => r.method === 'wall.post').params.owner_id).toBe('-7');
   });
 });

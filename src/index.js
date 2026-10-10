@@ -41,7 +41,12 @@ const VK_ERROR_CAPTCHA = 14;
  * question into something the user can act on themselves.
  */
 const ERROR_HINTS = {
-  5: 'The token is not valid any more. Get a new one with `npx vk-mcp-server --login <APP_ID>`.',
+  // Not `--login`: it reissues only VK ID tokens, which cannot post, so for a
+  // community token it led nowhere. And a token pasted with quotes or a trailing
+  // comment fails exactly like a revoked one.
+  5:
+    'VK does not accept this token: it was revoked, deleted or replaced by a newer one — or it was pasted with quotes, spaces or a trailing comment. ' +
+    'Check it is the whole token and nothing else; if so, create a fresh one where it came from (a community token: the community → Manage → API usage → Access tokens).',
   7: 'The token lacks the permission this method needs. Re-issue it including the relevant scope (wall, photos, groups, friends or stats).',
   8:
     'This usually means the VK app that issued the token has been blocked — every token from a blocked app fails this way, however valid it looks. ' +
@@ -87,9 +92,10 @@ const ERROR_HINTS = {
  * whoever is reading the chat, not to a terminal nobody is watching.
  */
 const NO_TOKEN_MESSAGE =
-  'No VK token configured. This server needs VK_ACCESS_TOKEN (or, for public reads only, VK_SERVICE_KEY) set in its environment. ' +
-  'Run `npx vk-mcp-server --login <APP_ID>` to obtain one through VK ID in your browser, ' +
-  'or follow https://github.com/bulatko/vk-mcp-server/blob/main/docs/SETUP.md. ' +
+  'No VK token configured. To post, comment and answer messages, set VK_ACCESS_TOKEN to a community token: ' +
+  'a community you manage → Manage → API usage → Access tokens → Create token. ' +
+  'For public reads alone, VK_SERVICE_KEY (the service key of your VK app) is enough. ' +
+  'Guide: https://github.com/bulatko/vk-mcp-server/blob/master/docs/SETUP.md. ' +
   'Listing tools works without a token; calling them does not.';
 
 /**
@@ -372,7 +378,8 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
 
 Usage:
   npx vk-mcp-server                 run the MCP server (needs VK_ACCESS_TOKEN to call tools)
-  npx vk-mcp-server --login <APP_ID>  get a token through VK ID in your browser
+  npx vk-mcp-server --login <APP_ID>  sign in through VK ID: public reads only; to post,
+                                    use a community token (see Environment)
   npx vk-mcp-server --check         report what your token is and what it can do
   npx vk-mcp-server --help          this message
 
@@ -523,8 +530,8 @@ function whyUnreachable(name, info) {
   }
 }
 
-/** The tool list to show: what the tokens reach, or everything when unsure. */
-async function listedTools() {
+/** The token probe, or null when VK has not answered within the timeout. */
+async function settledTokenInfo() {
   // Cleared once VK answers: a pending timer would keep the process alive
   // after the client hangs up.
   let timer;
@@ -533,10 +540,20 @@ async function listedTools() {
   });
   const info = await Promise.race([detectToken(), timeout]);
   clearTimeout(timer);
+  return info;
+}
+
+/** Whether to offer a tool: when the tokens reach it, or when unsure. */
+function offered(name, info) {
   // No token is how registries introspect, and they must see every tool. An
   // unknown kind needs no case here: whyUnreachable keeps every tool for it.
-  if (!info || info.kind === 'none') return tools;
-  return tools.filter((tool) => !whyUnreachable(tool.name, info));
+  return !info || info.kind === 'none' || !whyUnreachable(name, info);
+}
+
+/** The tool list to show. */
+async function listedTools() {
+  const info = await settledTokenInfo();
+  return tools.filter((tool) => offered(tool.name, info));
 }
 
 /** The community a community token acts as, from the token probe or, failing that, from VK. */
@@ -655,11 +672,11 @@ const tools = [
   {
     name: 'vk_wall_post',
     title: 'Publish a post',
-    description: 'Publish a post on a wall. To post in a community, set owner_id to the community ID with a minus sign (-123) and from_group true, otherwise it appears as your personal post on the community wall. Attach media with the attachment string that vk_photos_upload_wall returns. Returns the new post_id.',
+    description: 'Publish a post on a wall. Under a community token, leave owner_id out and the post goes on that community\'s wall. Otherwise, to post in a community, set owner_id to the community ID with a minus sign (-123) and from_group true, or it appears as your personal post on the community wall. Attach media with the attachment string that vk_photos_upload_wall returns. Returns the new post_id.',
     inputSchema: {
       type: 'object',
       properties: {
-        owner_id: { type: 'number', description: 'Wall owner: a community as a negative number (-123), a person as a positive one. Defaults to the token owner.' },
+        owner_id: { type: 'number', description: 'Wall owner: a community as a negative number (-123), a person as a positive one. Defaults to the token\'s own community under a community token, to the token owner otherwise.' },
         message: { type: 'string', description: 'Post text content' },
         from_group: { type: 'boolean', description: 'Post on behalf of community' },
         attachments: { type: 'string', description: 'Comma-separated attachments (e.g. photo123_456,link)' },
@@ -1319,9 +1336,17 @@ async function handleToolCall(name, args) {
         });
         break;
 
-      case 'vk_wall_post':
+      case 'vk_wall_post': {
+        // Without owner_id VK posts to the token's own wall, and a community
+        // token has none: it refuses with 214. The community's wall is what was
+        // meant, and the probe already knows which community that is.
+        let ownerId = args.owner_id;
+        if (ownerId === undefined) {
+          const info = await detectToken();
+          if (info.community) ownerId = -info.community.id;
+        }
         result = await vk.wallPost({
-          owner_id: args.owner_id,
+          owner_id: ownerId,
           message: args.message,
           from_group: args.from_group ? 1 : 0,
           attachments: args.attachments,
@@ -1329,6 +1354,7 @@ async function handleToolCall(name, args) {
           guid: args.guid,
         });
         break;
+      }
 
       case 'vk_wall_create_comment':
         result = await vk.wallCreateComment({
@@ -1665,6 +1691,7 @@ const prompts = [
     name: 'community_digest',
     title: 'Digest a VK community',
     description: 'Summarise what a community has been posting lately, with themes and standout posts.',
+    needs: ['vk_groups_get_by_id', 'vk_wall_get'],
     arguments: [
       { name: 'community', description: 'Short address or numeric ID, e.g. apiclub', required: true },
       { name: 'count', description: 'How many recent posts to read (default 20)', required: false },
@@ -1681,6 +1708,7 @@ const prompts = [
     name: 'engagement_report',
     title: 'Analyse engagement',
     description: 'Find which posts resonated and what they have in common.',
+    needs: ['vk_wall_get'],
     arguments: [
       { name: 'community', description: 'Short address or numeric ID', required: true },
       { name: 'count', description: 'How many recent posts to consider (default 50)', required: false },
@@ -1698,6 +1726,7 @@ const prompts = [
     name: 'audience_snapshot',
     title: 'Describe a community audience',
     description: 'Sample the members of a community and describe who they are.',
+    needs: ['vk_groups_get_by_id', 'vk_groups_get_members'],
     arguments: [
       { name: 'community', description: 'Short address or numeric ID', required: true },
       { name: 'sample', description: 'How many members to sample (default 200)', required: false },
@@ -1715,30 +1744,44 @@ const prompts = [
     name: 'publish_post',
     title: 'Publish a post to a community',
     description: 'Draft a post, show it for approval, and publish it once you say so.',
+    needs: ['vk_groups_get_by_id', 'vk_wall_post'],
     arguments: [
       { name: 'community', description: 'Community short address or numeric ID', required: true },
       { name: 'about', description: 'What the post should say', required: true },
       { name: 'image', description: 'Optional image URL or local file path', required: false },
     ],
-    build: ({ community, about, image }) =>
-      `Write and publish a VK post for the community "${community}" about: ${about}\n\n` +
-      `First use vk_groups_get_by_id with group_ids="${community}" to get its numeric ID, and ` +
-      'read the last few posts with vk_wall_get so the new one matches the tone and length ' +
-      'that community actually uses.\n\n' +
-      (image
-        ? `Upload the image with vk_photos_upload_wall (group_id = the positive community ID, image="${image}") ` +
-          'and keep the attachment string it returns.\n\n'
-        : '') +
-      'Then show me the draft and wait for my approval — do not publish first and ask after. ' +
-      'Once I approve, publish with vk_wall_post using owner_id = minus the community ID ' +
-      '(a community is negative there) and from_group=true, so it appears as the community' +
-      (image ? ', and attachments = the string from the upload step' : '') +
-      '. Finish by giving me the link: https://vk.com/wall{owner_id}_{post_id}.',
+    // A community token posts but reads no wall and uploads no photo, so the
+    // steps that need those are offered only when the tokens reach them.
+    build: ({ community, about, image }, can) => {
+      const upload = image && can('vk_photos_upload_wall');
+      return (
+        `Write and publish a VK post for the community "${community}" about: ${about}\n\n` +
+        `First use vk_groups_get_by_id with group_ids="${community}" to get its numeric ID` +
+        (can('vk_wall_get')
+          ? ', and read the last few posts with vk_wall_get so the new one matches the tone and length ' +
+            'that community actually uses.\n\n'
+          : '.\n\n') +
+        (upload
+          ? `Upload the image with vk_photos_upload_wall (group_id = the positive community ID, image="${image}") ` +
+            'and keep the attachment string it returns.\n\n'
+          : '') +
+        (image && !upload
+          ? `The image (${image}) cannot go into the post: VK refuses this token photo uploads. ` +
+            'Say so when you show the draft.\n\n'
+          : '') +
+        'Then show me the draft and wait for my approval — do not publish first and ask after. ' +
+        'Once I approve, publish with vk_wall_post using owner_id = minus the community ID ' +
+        '(a community is negative there) and from_group=true, so it appears as the community' +
+        (upload ? ', and attachments = the string from the upload step' : '') +
+        '. Finish by giving me the link: https://vk.com/wall{owner_id}_{post_id}.'
+      );
+    },
   },
   {
     name: 'find_communities',
     title: 'Find communities on a topic',
     description: 'Search VK communities on a topic and compare the candidates.',
+    needs: ['vk_groups_search', 'vk_groups_get_by_id'],
     arguments: [
       { name: 'topic', description: 'What to search for, e.g. indie music', required: true },
       { name: 'count', description: 'How many candidates to compare (default 10)', required: false },
@@ -1755,6 +1798,7 @@ const prompts = [
     name: 'community_inbox',
     title: 'Work through the community inbox',
     description: 'Go through unread messages to your community, summarise each, and draft replies for you to approve.',
+    needs: ['vk_messages_get_conversations', 'vk_messages_get_history', 'vk_messages_send', 'vk_messages_mark_as_read'],
     arguments: [
       { name: 'count', description: 'How many conversations to go through (default 10)', required: false },
       { name: 'tone', description: 'How replies should sound, e.g. friendly and brief', required: false },
@@ -1805,9 +1849,16 @@ function buildServer() {
     };
   });
 
-  server.setRequestHandler('prompts/list', async () => ({
-    prompts: prompts.map(({ build, ...prompt }) => prompt),
-  }));
+  // Prompts follow the token like tools do: one built on a wall read would
+  // send the model to a tool it cannot see.
+  server.setRequestHandler('prompts/list', async () => {
+    const info = await settledTokenInfo();
+    return {
+      prompts: prompts
+        .filter((prompt) => prompt.needs.every((name) => offered(name, info)))
+        .map(({ build, needs, ...prompt }) => prompt),
+    };
+  });
 
   server.setRequestHandler('prompts/get', async (request) => {
     const prompt = prompts.find((p) => p.name === request.params.name);
@@ -1821,11 +1872,11 @@ function buildServer() {
       throw new Error(`Missing required argument(s) for ${prompt.name}: ${missing.join(', ')}`);
     }
 
+    const info = await settledTokenInfo();
+    const text = prompt.build(args, (name) => offered(name, info));
     return {
       description: prompt.description,
-      messages: [
-        { role: 'user', content: { type: 'text', text: prompt.build(args) } },
-      ],
+      messages: [{ role: 'user', content: { type: 'text', text } }],
     };
   });
 

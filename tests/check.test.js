@@ -148,7 +148,8 @@ describe('--check', () => {
 
     expect(code).toBe(1);
     expect(stderr).toMatch(/expired or was revoked/i);
-    expect(stderr).toMatch(/--login/);
+    expect(stderr).toMatch(/API usage → Access tokens/);
+    expect(stderr).not.toMatch(/--login/);
   }, 20000);
 
   it('explains a blocked app, which is otherwise indistinguishable from a bad token', async () => {

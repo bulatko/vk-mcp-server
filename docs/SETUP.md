@@ -202,7 +202,7 @@ types you have, who it acts as, and what it can reach.
 | `Security Error` while authorising | The old OAuth flow, which VK no longer opens to apps created since. `--login` uses the current VK ID flow instead — but see what that token can do, above. |
 | `error 8: Application is blocked` | The app that issued the token is blocked. Create your own (step 1 above) and issue a fresh token. |
 | `error 5` with `subcode 1130` | IP binding — see [Remote installs](#remote-installs). |
-| `error 5` otherwise | The token expired or was revoked. Run `--login` again. |
+| `error 5` otherwise | The token is not accepted: revoked, deleted or replaced by a newer one — or pasted with quotes, spaces or a trailing comment. Check it is the whole token; if so, create a fresh one where it came from (a community token: Manage → API usage → Access tokens). `--login` reissues only VK ID tokens, which cannot post. |
 | `error 27` | A community token asked for something VK keeps from it — reading a wall, say. Set `VK_SERVICE_KEY` and reads go to the key; edits, deletions and statistics stay closed to every token a new app can get. |
 | `error 1051` or `error 28` | The token's kind is not allowed to call that method — a service key and a VK ID token both hit this. To post, use a community token. |
 | `error 15: Access denied` | The data is restricted — a private profile, or a community that hides its members. |
