@@ -112,6 +112,8 @@ const call = async (client, name, args = {}) => {
 };
 
 const COMMUNITY_REACH = [
+  'vk_events_get',
+  'vk_events_listen',
   'vk_groups_get_by_id',
   'vk_groups_get_members',
   'vk_messages_get_conversations',
@@ -126,7 +128,7 @@ const COMMUNITY_REACH = [
   'vk_wall_post',
 ];
 const KEY_REACH = ['vk_groups_get_by_id', 'vk_groups_get_members', 'vk_token_info', 'vk_users_get', 'vk_wall_get'];
-const INBOX = ['vk_messages_get_conversations', 'vk_messages_get_history', 'vk_messages_mark_as_read', 'vk_messages_send'];
+const INBOX = ['vk_events_get', 'vk_events_listen', 'vk_messages_get_conversations', 'vk_messages_get_history', 'vk_messages_mark_as_read', 'vk_messages_send'];
 
 describe('tools/list by token kind', () => {
   it('shows a community token what it posts, comments, publishes and answers with', async () => {

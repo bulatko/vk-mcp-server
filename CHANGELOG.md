@@ -13,6 +13,14 @@
 - `vk_token_info`: which token is connected, the community and rights of a
   community token, which tools work, and for each of the others what would
   open it
+- Community events: `vk_events_listen` and `vk_events_get`. A community token
+  is refused comments, likes and the wall, but VK's Bots Long Poll pushes them
+  as events: a new comment with its text and ID, who liked which post, who
+  joined or left (checked live). Listening turns on the community's Long Poll
+  and the event types when they are off, and leaves the API version alone when
+  another bot already reads it. Events are kept in a bounded buffer (500) and
+  read by cursor, with an optional wait of up to 25 s; polling stops when the
+  client hangs up. No history: only what happens while the server listens
 - Community messages switched off get their own hint (turn them on in the
   community settings) instead of the one blaming someone's privacy settings
 

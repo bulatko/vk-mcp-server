@@ -318,6 +318,20 @@ it first or allowed its messages.
 | `vk_messages_send` | ✏️ Reply as the community — reaches a real person, so clients should ask first |
 | `vk_messages_mark_as_read` | ✏️ Mark a conversation as read |
 
+### Community events
+
+VK refuses a community token comments, likes and the wall, but sends them as
+events to a community that listens. Call `vk_events_listen` once: it turns on
+the community's Long Poll and the event types if they are off — leaving the API
+version alone when another bot already reads it — and starts receiving. VK
+keeps no history: you see what happens from that moment on, while the server
+runs. Deleting comments stays closed to a community token.
+
+| Tool | Description |
+|------|-------------|
+| `vk_events_listen` | ✏️ Start receiving new comments (text and ID), likes, posts and reposts, joins and leaves, messages |
+| `vk_events_get` | Read them by cursor; `wait` holds up to 25 s for the next one, so an agent can answer each new comment in a loop |
+
 ### Other
 
 | Tool | Description |

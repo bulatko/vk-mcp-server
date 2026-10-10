@@ -13,6 +13,7 @@ import { randomInt } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { CommunityEvents, DEFAULT_EVENT_TYPES, WAIT_SECONDS } from './events.js';
 
 // Single source of truth for the version — announcing a hardcoded one drifts.
 const { version: VERSION } = createRequire(import.meta.url)('../package.json');
@@ -479,14 +480,19 @@ const REACHED_BY_COMMUNITY = new Set([
   'vk_messages_get_history',
   'vk_messages_send',
   'vk_messages_mark_as_read',
+  'vk_events_listen',
+  'vk_events_get',
 ]);
 const REACHED_BY_KEY = new Set(['vk_users_get', 'vk_wall_get', 'vk_groups_get_by_id', 'vk_groups_get_members']);
-// The community's inbox: under a user token they would act on a person's own.
+// The community's inbox and events: under a user token the inbox would be the
+// person's own, and listening as a community is checked only with its token.
 const COMMUNITY_ONLY = new Set([
   'vk_messages_get_conversations',
   'vk_messages_get_history',
   'vk_messages_send',
   'vk_messages_mark_as_read',
+  'vk_events_listen',
+  'vk_events_get',
 ]);
 
 const NEEDS_COMMUNITY_TOKEN =
@@ -532,6 +538,18 @@ async function listedTools() {
   if (!info || info.kind === 'none') return tools;
   return tools.filter((tool) => !whyUnreachable(tool.name, info));
 }
+
+/** The community a community token acts as, from the token probe or, failing that, from VK. */
+async function ownCommunityId() {
+  const info = await detectToken();
+  if (info.community) return info.community.id;
+  const found = await vk.call('groups.getById').then((r) => (r.groups ?? r)[0], () => null);
+  if (!found) throw new Error(`Listening to a community needs a community token. ${NEEDS_COMMUNITY_TOKEN}`);
+  return found.id;
+}
+
+/** Events of the community, once vk_events_listen has started them. One per process: stdio serves one client. */
+let communityEvents = null;
 
 // ============================================
 // APP UI (MCP Apps)
@@ -813,6 +831,37 @@ const tools = [
       required: ['peer_id'],
     },
   },
+  // Community events. VK refuses a community token comments, likes and the
+  // wall, but pushes them as events to a community that listens (checked live).
+  {
+    name: 'vk_events_listen',
+    title: 'Start watching the community',
+    description: 'Start receiving what happens in your community as it happens: new comments with their text and ID (so you can answer them with vk_wall_create_comment), likes, new posts and reposts, people joining and leaving, messages. Turns on the community\'s Long Poll and the event types if they are off. VK keeps no history: only events from now on are seen, while this server runs. Read them with vk_events_get.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        types: {
+          type: 'array',
+          items: { type: 'string' },
+          description: `Event types to turn on. Default: ${DEFAULT_EVENT_TYPES.join(', ')}`,
+        },
+      },
+    },
+  },
+  {
+    name: 'vk_events_get',
+    title: 'Read community events',
+    description: `Read the community events received since vk_events_listen, oldest first. Pass the returned cursor as after next time to get only new ones. With wait (up to ${WAIT_SECONDS} seconds) it holds until something arrives — call it in a loop to follow the community, e.g. to answer each new comment.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        after: { type: 'number', description: 'Cursor from the previous call; events after it are returned (default: all received)' },
+        types: { type: 'array', items: { type: 'string' }, description: 'Only these event types, e.g. ["wall_reply_new"]' },
+        wait: { type: 'number', description: `Seconds to wait for an event when there is none yet (0–${WAIT_SECONDS}, default 0)` },
+        limit: { type: 'number', description: 'Most events to return (default 50, max 200)' },
+      },
+    },
+  },
   {
     name: 'vk_groups_search',
     title: 'Search communities',
@@ -1069,6 +1118,47 @@ const OUTPUT_SCHEMAS = {
     required: ['message_id'],
   },
   vk_messages_mark_as_read: successOutput,
+  vk_events_listen: {
+    type: 'object',
+    properties: {
+      listening: { type: 'boolean', description: 'Whether events are being received' },
+      community_id: { type: 'number', description: 'The community being watched' },
+      since: { type: 'string', description: 'When listening began; nothing earlier is seen' },
+      long_poll_turned_on: { type: 'boolean', description: 'Whether the community\'s Long Poll was off and this call turned it on' },
+      events_on: { type: 'array', items: { type: 'string' }, description: 'Event types the community now sends' },
+      not_available: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Requested types VK did not turn on for this community (unknown, or tied to a feature it lacks)',
+      },
+    },
+    required: ['listening'],
+  },
+  vk_events_get: {
+    type: 'object',
+    properties: {
+      listening: { type: 'boolean', description: 'Whether events are still being received' },
+      stopped_because: { type: 'string', description: 'Why listening ended, when it has' },
+      since: { type: 'string', description: 'When listening began' },
+      events: {
+        type: 'array',
+        description: 'Events, oldest first; object is what VK sent for that type',
+        items: {
+          type: 'object',
+          properties: {
+            seq: { type: 'number' },
+            type: { type: 'string' },
+            at: { type: 'string', description: 'When the server received it' },
+            object: { type: 'object' },
+          },
+        },
+      },
+      cursor: { type: 'number', description: 'Pass as after to get only newer events' },
+      more: { type: 'boolean', description: 'Whether more events wait after this page' },
+      missed: { type: 'number', description: 'Events after the cursor that were dropped from the buffer before being read' },
+    },
+    required: ['listening', 'events', 'cursor'],
+  },
   vk_token_info: {
     type: 'object',
     properties: {
@@ -1120,6 +1210,7 @@ const ICONS = {
   story: icon('<circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="3"/>'),
   message: icon('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>'),
   key: icon('<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>'),
+  bell: icon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
 };
 
 const TOOL_ICONS = {
@@ -1149,6 +1240,8 @@ const TOOL_ICONS = {
   vk_messages_send: ICONS.message,
   vk_messages_mark_as_read: ICONS.message,
   vk_token_info: ICONS.key,
+  vk_events_listen: ICONS.bell,
+  vk_events_get: ICONS.bell,
 };
 
 // Tools that change something on VK, and whether the change destroys or
@@ -1166,6 +1259,8 @@ const WRITING_TOOLS = {
   // writes should ask here above all.
   vk_messages_send: { destructive: false },
   vk_messages_mark_as_read: { destructive: false, idempotent: true },
+  // Changes the community's Long Poll settings, and only turns things on.
+  vk_events_listen: { destructive: false, idempotent: true },
 };
 
 // MCP annotations let a client tell reads from writes — so it can auto-approve
@@ -1362,6 +1457,46 @@ async function handleToolCall(name, args) {
         result = { message_id: messageId };
         break;
       }
+
+      case 'vk_events_listen': {
+        if (communityEvents && !communityEvents.stopped) {
+          result = { listening: true, community_id: communityEvents.groupId, since: communityEvents.since };
+          break;
+        }
+        const groupId = await ownCommunityId();
+        const before = await vk.call('groups.getLongPollSettings', { group_id: groupId });
+        const types = args.types?.length ? args.types : DEFAULT_EVENT_TYPES;
+        const change = Object.fromEntries(types.filter((type) => !before.events?.[type]).map((type) => [type, 1]));
+        // Turning Long Poll on picks the API version events are shaped by. When
+        // it is on already, another bot may be reading it, so its version stays
+        // (several readers are fine: VK hands each its own key, checked live).
+        if (!before.is_enabled) Object.assign(change, { enabled: 1, api_version: VK_API_VERSION });
+        const changed = Object.keys(change).length > 0;
+        if (changed) await vk.call('groups.setLongPollSettings', { group_id: groupId, ...change });
+        const now = changed ? await vk.call('groups.getLongPollSettings', { group_id: groupId }) : before;
+
+        const events = new CommunityEvents((method, params) => vk.call(method, params), groupId);
+        await events.start();
+        communityEvents = events;
+        result = {
+          listening: true,
+          community_id: groupId,
+          since: events.since,
+          long_poll_turned_on: !before.is_enabled,
+          events_on: Object.keys(now.events ?? {}).filter((type) => now.events[type]),
+          not_available: types.filter((type) => !now.events?.[type]),
+        };
+        break;
+      }
+
+      case 'vk_events_get':
+        if (!communityEvents) {
+          throw new Error(
+            'Not listening yet: call vk_events_listen first. VK keeps no history, so events are seen only from that moment on.'
+          );
+        }
+        result = await communityEvents.read({ after: args.after, types: args.types, wait: args.wait, limit: args.limit });
+        break;
 
       case 'vk_token_info': {
         const info = await detectToken();
@@ -1725,6 +1860,11 @@ function buildServer() {
 
 async function main() {
   serveStdio(buildServer);
+  // A poll held open for VK would keep the process alive after the client
+  // hangs up, polling for nobody. Stop listening when stdin ends.
+  const hangUp = () => communityEvents?.stop('the client disconnected');
+  process.stdin.once('end', hangUp);
+  process.stdin.once('close', hangUp);
   console.error('VK MCP Server running on stdio');
   if (!VK_ACCESS_TOKEN && !VK_SERVICE_KEY) {
     console.error('No VK_ACCESS_TOKEN set — tools are listed but will fail when called.');

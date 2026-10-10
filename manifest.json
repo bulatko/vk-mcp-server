@@ -132,6 +132,14 @@
       "description": "Mark every message in one conversation of your community's inbox as read, e.g. after answering it."
     },
     {
+      "name": "vk_events_listen",
+      "description": "Start receiving what happens in your community as it happens: new comments with their text and ID (so you can answer them with vk_wall_create_comment), likes, new posts and reposts, people joining and leaving, messages. Turns on the community's Long Poll and the event types if they are off. VK keeps no history: only events from now on are seen, while this server runs. Read them with vk_events_get."
+    },
+    {
+      "name": "vk_events_get",
+      "description": "Read the community events received since vk_events_listen, oldest first. Pass the returned cursor as after next time to get only new ones. With wait (up to 25 seconds) it holds until something arrives — call it in a loop to follow the community, e.g. to answer each new comment."
+    },
+    {
       "name": "vk_groups_search",
       "description": "Find communities by keyword, optionally narrowed by type, country, city or sort order. Returns matches with a total count."
     },
