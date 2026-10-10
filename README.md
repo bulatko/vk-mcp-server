@@ -256,6 +256,13 @@ behalf of whoever owns the access token. Each tool also carries MCP annotations
 (`readOnlyHint`, `destructiveHint`), so a client can auto-approve lookups while
 still asking before a post is edited or deleted.
 
+The model sees only the tools your token reaches. On start the server asks VK
+which token it holds — community, user, VK ID or service key — and leaves out
+the tools VK would refuse it, so the model does not discover the limits one
+error at a time. `vk_token_info` says which token it is and, for each tool
+left out, what would open it. With no token, or when VK cannot tell, every
+tool is listed.
+
 ### Users
 
 | Tool | Description |
@@ -319,6 +326,7 @@ it first or allowed its messages.
 | `vk_newsfeed_get` | Get user's newsfeed |
 | `vk_likes_get` | Get users who liked an object, with reaction counts |
 | `vk_stats_get` | Get community statistics (admin only) |
+| `vk_token_info` | Which token is connected, which tools work with it, and what would open the rest |
 
 ## Prompts
 

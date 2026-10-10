@@ -105,6 +105,15 @@ const ERROR_SUBCODE_HINTS = {
     'in the community settings and are not tied to a browser session.',
 };
 
+/**
+ * A community with its messages switched off answers the inbox methods with an
+ * access error whose code-level hint would blame someone's privacy settings.
+ * Only the text tells the two apart (seen on the live API by windbit's fork).
+ */
+const MESSAGES_OFF = /messages (are|is) disabled/i;
+const MESSAGES_OFF_HINT =
+  'Community messages are switched off. Turn them on in the community: Manage → Messages → Community messages, then retry.';
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -211,7 +220,9 @@ class VKClient {
         );
       }
 
-      const hint = ERROR_SUBCODE_HINTS[data.error.error_subcode] || ERROR_HINTS[code];
+      const hint = MESSAGES_OFF.test(msg)
+        ? MESSAGES_OFF_HINT
+        : ERROR_SUBCODE_HINTS[data.error.error_subcode] || ERROR_HINTS[code];
       const error = new Error(`VK API Error ${code}: ${msg}${hint ? ` — ${hint}` : ''}`);
       error.vkCode = code;
       throw error;
@@ -391,6 +402,135 @@ const VK_ACCESS_TOKEN = process.env.VK_ACCESS_TOKEN;
 const VK_SERVICE_KEY = process.env.VK_SERVICE_KEY;
 
 const vk = new VKClient(VK_ACCESS_TOKEN, VK_SERVICE_KEY);
+
+// ============================================
+// WHAT THE TOKENS REACH
+// ============================================
+
+/**
+ * VK tokens look alike in a config file and reach very different slices of the
+ * API, and the model cannot tell from the tool list which slice it holds: under
+ * a community token it calls vk_wall_get, is refused, and spends the turn
+ * explaining the refusal instead of doing the work. So the server asks VK once
+ * which token it holds and lists only the tools that token — with the service
+ * key, if one is set — reaches. The idea and its first version came from
+ * windbit's fork.
+ *
+ * Only the list changes: a tool left out still answers when called, since a
+ * client may hold an older list. And anything uncertain fails open — no token,
+ * a token VK rejects, a VK that does not answer in time: every tool stays listed.
+ */
+const TOKEN_PROBE_TIMEOUT_MS = 5000;
+let tokenProbe;
+
+/** What VK_ACCESS_TOKEN is, asked of VK on first use and remembered. */
+function detectToken() {
+  tokenProbe ??= probeToken();
+  return tokenProbe;
+}
+
+async function probeToken() {
+  if (!VK_ACCESS_TOKEN) return { kind: VK_SERVICE_KEY ? 'service' : 'none' };
+  // Straight to VK with the token itself: VKClient.call would hand a refusal
+  // to the service key, and the refusal is the answer here.
+  const ask = (method, params = {}) => vk.request(method, params, VK_ACCESS_TOKEN);
+
+  try {
+    // Only a community token may call this, and it answers with the rights the
+    // token was issued with; groups.getById without arguments names the community.
+    const { permissions } = await ask('groups.getTokenPermissions');
+    const found = await ask('groups.getById').then((r) => (r.groups ?? r)[0], () => null);
+    return {
+      kind: 'community',
+      ...(found && { community: { id: found.id, name: found.name, screen_name: found.screen_name } }),
+      scopes: (permissions ?? []).map((p) => p.name),
+    };
+  } catch (error) {
+    if (error.vkCode === 28) return { kind: 'service' };
+    if (error.vkCode === 5) return { kind: 'unknown', reason: 'VK rejected the token as invalid (error 5)' };
+    if (!error.vkCode) return { kind: 'unknown', reason: `VK could not be asked: ${error.message}` };
+  }
+
+  if (VK_ACCESS_TOKEN.startsWith('vk2.')) return { kind: 'vkid' };
+  // users.get without arguments names the owner of a user token.
+  const me = await ask('users.get').catch(() => null);
+  if (Array.isArray(me) && me.length) return { kind: 'user' };
+  return { kind: 'unknown', reason: 'VK did not say what kind of token this is' };
+}
+
+/**
+ * Measured on the live API rather than read from VK's schema, which is wrong in
+ * both directions — it has wall.post as user-only, and a community token posts.
+ * The community token was checked with every right ticked (2026-10-01), the
+ * service key on 2026-10-10; a VK ID token reads what a key reads (2026-07-26).
+ * Tools in neither set are left to user tokens, which VK no longer issues to
+ * new apps.
+ */
+const REACHED_BY_COMMUNITY = new Set([
+  'vk_users_get',
+  'vk_groups_get_by_id',
+  'vk_groups_get_members',
+  'vk_wall_post',
+  'vk_wall_create_comment',
+  'vk_stories_post_photo',
+  'vk_stories_post_video',
+  'vk_messages_get_conversations',
+  'vk_messages_get_history',
+  'vk_messages_send',
+  'vk_messages_mark_as_read',
+]);
+const REACHED_BY_KEY = new Set(['vk_users_get', 'vk_wall_get', 'vk_groups_get_by_id', 'vk_groups_get_members']);
+// The community's inbox: under a user token they would act on a person's own.
+const COMMUNITY_ONLY = new Set([
+  'vk_messages_get_conversations',
+  'vk_messages_get_history',
+  'vk_messages_send',
+  'vk_messages_mark_as_read',
+]);
+
+const NEEDS_COMMUNITY_TOKEN =
+  'Needs a community token: open a community you manage → Manage → API usage → Access tokens → Create token.';
+const NEEDS_USER_TOKEN = 'VK keeps this for user tokens, which it no longer issues to new apps.';
+
+/** Why the configured tokens cannot use a tool, or null when they can. */
+function whyUnreachable(name, info) {
+  if (name === 'vk_token_info') return null;
+  const keyReads = Boolean(VK_SERVICE_KEY) || info.kind === 'service' || info.kind === 'vkid';
+  if (keyReads && REACHED_BY_KEY.has(name)) return null;
+
+  switch (info.kind) {
+    case 'community':
+      if (REACHED_BY_COMMUNITY.has(name)) return null;
+      return REACHED_BY_KEY.has(name)
+        ? 'VK refuses this read to a community token (error 27). Set VK_SERVICE_KEY as well and the server makes it with the key.'
+        : `VK refuses this to a community token (error 27). ${NEEDS_USER_TOKEN}`;
+    case 'service':
+    case 'vkid':
+      return REACHED_BY_COMMUNITY.has(name) ? NEEDS_COMMUNITY_TOKEN : NEEDS_USER_TOKEN;
+    case 'user':
+      return COMMUNITY_ONLY.has(name) ? `It acts as a community. ${NEEDS_COMMUNITY_TOKEN}` : null;
+    case 'none':
+      return 'No VK token is configured.';
+    default:
+      return null;
+  }
+}
+
+/** The tool list to show: what the tokens reach, or everything when unsure. */
+async function listedTools() {
+  // Cleared once VK answers: a pending timer would keep the process alive
+  // after the client hangs up.
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(resolve, TOKEN_PROBE_TIMEOUT_MS, null);
+  });
+  const info = await Promise.race([detectToken(), timeout]);
+  clearTimeout(timer);
+  // No token is how registries introspect, and they must see every tool. An
+  // unknown kind needs no case here: whyUnreachable keeps every tool for it.
+  if (!info || info.kind === 'none') return tools;
+  return tools.filter((tool) => !whyUnreachable(tool.name, info));
+}
 
 // ============================================
 // APP UI (MCP Apps)
@@ -828,6 +968,12 @@ const tools = [
       },
     },
   },
+  {
+    name: 'vk_token_info',
+    title: 'What the VK token can do',
+    description: 'Say which VK token the server holds — a community token, a user token, a VK ID sign-in token or an app service key — which community it acts as and with which rights, which tools work with it, and for each tool that does not, what would make it work. Call it when unsure what you can do in VK, or before telling the user something cannot be done.',
+    inputSchema: { type: 'object', properties: {} },
+  },
 ];
 
 // Output schemas. A tool that declares one must return structuredContent that
@@ -922,6 +1068,30 @@ const OUTPUT_SCHEMAS = {
     required: ['message_id'],
   },
   vk_messages_mark_as_read: successOutput,
+  vk_token_info: {
+    type: 'object',
+    properties: {
+      kind: {
+        type: 'string',
+        description: 'community, user, vkid (a VK ID sign-in token), service (an app service key), none, or unknown when VK could not say',
+      },
+      community: { type: 'object', description: 'The community a community token acts as: id, name, screen_name' },
+      scopes: { type: 'array', items: { type: 'string' }, description: 'Rights a community token was issued with, as VK names them' },
+      service_key: { type: 'boolean', description: 'Whether VK_SERVICE_KEY is set; reads the token is refused are made with it' },
+      reason: { type: 'string', description: 'Why the kind is unknown' },
+      tools: { type: 'array', items: { type: 'string' }, description: 'Tools that work with the configured tokens' },
+      unavailable: {
+        type: 'array',
+        description: 'Tools that do not, each with what would make it work',
+        items: {
+          type: 'object',
+          properties: { tool: { type: 'string' }, reason: { type: 'string' } },
+          required: ['tool', 'reason'],
+        },
+      },
+    },
+    required: ['kind', 'tools', 'unavailable'],
+  },
 };
 
 // Per-area icons (SEP-973). Inline SVG data URIs keep them dependency-free and
@@ -948,6 +1118,7 @@ const ICONS = {
   search: icon('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),
   story: icon('<circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="3"/>'),
   message: icon('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>'),
+  key: icon('<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>'),
 };
 
 const TOOL_ICONS = {
@@ -976,6 +1147,7 @@ const TOOL_ICONS = {
   vk_messages_get_history: ICONS.message,
   vk_messages_send: ICONS.message,
   vk_messages_mark_as_read: ICONS.message,
+  vk_token_info: ICONS.key,
 };
 
 // Tools that change something on VK, and whether the change destroys or
@@ -1187,6 +1359,20 @@ async function handleToolCall(name, args) {
           random_id: randomInt(1, 2 ** 31 - 1),
         });
         result = { message_id: messageId };
+        break;
+      }
+
+      case 'vk_token_info': {
+        const info = await detectToken();
+        const unavailable = tools
+          .map((tool) => ({ tool: tool.name, reason: whyUnreachable(tool.name, info) }))
+          .filter((entry) => entry.reason);
+        result = {
+          ...info,
+          service_key: Boolean(VK_SERVICE_KEY),
+          tools: tools.map((tool) => tool.name).filter((name) => !whyUnreachable(name, info)),
+          unavailable,
+        };
         break;
       }
 
@@ -1465,7 +1651,7 @@ function buildServer() {
     { capabilities: { tools: {}, prompts: {}, resources: {} } }
   );
 
-  server.setRequestHandler('tools/list', async () => ({ tools }));
+  server.setRequestHandler('tools/list', async () => ({ tools: await listedTools() }));
 
   server.setRequestHandler('resources/list', async () => ({
     resources: UI_RESOURCES.map(({ file, ...resource }) => resource),

@@ -170,6 +170,10 @@
     {
       "name": "vk_photos_get",
       "description": "List photos from an album. album_id accepts wall, profile or saved as well as a numeric album ID. owner_id is negative for a community."
+    },
+    {
+      "name": "vk_token_info",
+      "description": "Say which VK token the server holds — a community token, a user token, a VK ID sign-in token or an app service key — which community it acts as and with which rights, which tools work with it, and for each tool that does not, what would make it work. Call it when unsure what you can do in VK, or before telling the user something cannot be done."
     }
   ]
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- The tool list follows the token. The server asks VK once which token it holds
+  (`groups.getTokenPermissions`, then `users.get`) and lists only the tools that
+  token reaches, together with `VK_SERVICE_KEY` when it is set: a community token
+  no longer sees `vk_wall_edit` or `vk_stats_get`, a service key no longer sees
+  the writes. The tables come from live measurements, not VK's schema, which
+  is wrong both ways. Left-out tools still answer if called, and with no token,
+  a rejected token or VK not answering within 5 s every tool stays listed.
+  Idea and first version: windbit's fork
+- `vk_token_info`: which token is connected, the community and rights of a
+  community token, which tools work, and for each of the others what would
+  open it
+- Community messages switched off get their own hint (turn them on in the
+  community settings) instead of the one blaming someone's privacy settings
+
 ## 0.8.2
 
 - The bundle's manifest lists the tools. Directories that read the .mcpb
