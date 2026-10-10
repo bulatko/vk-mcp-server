@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.9.0
+
+- No hint sends a community-token user to `--login` any more. Error 5 and the
+  missing-token message used to recommend it, but it reissues only VK ID tokens,
+  which cannot post — a dead end for exactly the people managing a community.
+  Error 5 now also names the cause we hit ourselves: a token pasted with quotes
+  or a trailing comment fails exactly like a revoked one. The missing-token
+  message pointed at `blob/main/docs/SETUP.md`, which is a 404 (the branch is
+  `master`)
+- `vk_wall_post` under a community token posts on that community's wall when
+  `owner_id` is left out. VK put such a post on the token's own wall, which a
+  community does not have, and refused with error 214
+- Prompts follow the token like tools do: each names the tools it relies on and
+  is offered only when the token reaches them. `publish_post` drops the wall
+  read and the image upload when the token cannot do them, and says the image
+  cannot go into the post
 
 - The tool list follows the token. The server asks VK once which token it holds
   (`groups.getTokenPermissions`, then `users.get`) and lists only the tools that
